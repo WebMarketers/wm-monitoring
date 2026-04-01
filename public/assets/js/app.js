@@ -1213,6 +1213,25 @@ async function renderSettings() {
           </div>
         </div>
 
+        <!-- WP Plugin Card -->
+        <div class="detail-card">
+          <div class="detail-card-header">
+            <div class="detail-card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="stroke-current" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              WordPress Plugin
+            </div>
+          </div>
+          <div class="detail-card-body">
+            <p style="font-size:13px;color:var(--text-2);margin-bottom:16px">
+              Download the WM Plus Monitoring WordPress plugin. Install this plugin on client sites to enable Form Submission Tracking and Automated Testing.
+            </p>
+            <a href="/plugin/wm-monitor.zip" class="btn btn-primary btn-sm" style="display:inline-flex;text-decoration:none" download>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download Latest Plugin (v2.0)
+            </a>
+          </div>
+        </div>
+
         <!-- Info Card -->
         <div class="detail-card">
           <div class="detail-card-header">

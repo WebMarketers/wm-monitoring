@@ -30,6 +30,9 @@ const CLIENTS_DIR = path.join(__dirname, 'clients');
 fs.mkdirSync(CLIENTS_DIR, { recursive: true });
 app.use('/data', express.static(CLIENTS_DIR));
 
+// ── Static: WP Plugin ──────────────────────────────────────────────────────────
+app.use('/plugin', express.static(path.join(__dirname, 'wp-plugin')));
+
 // ── API Routes ─────────────────────────────────────────────────────────────────
 app.use('/api/clients',       clientsRouter);
 app.use('/api/settings',      settingsRouter);
