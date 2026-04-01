@@ -113,6 +113,19 @@ async function runFormTest(runId, client) {
       errors: result.errors,
     });
 
+    // Also record this test in the form_submission_log
+    await db.insertFormSubmissionLog({
+      client_id:    client.id,
+      form_id:      client.form_id || null,
+      form_name:    null,
+      form_type:    'manual_test',
+      submitted_at: new Date().toISOString(),
+      is_test:      true,
+      status:       passed ? 'test_passed' : 'test_failed',
+      error:        !passed ? JSON.stringify(result.errors || result) : null,
+      details:      JSON.stringify(result),
+    });
+
   } catch (err) {
     const errMsg = err.response
       ? `HTTP ${err.response.status}: ${JSON.stringify(err.response.data)}`

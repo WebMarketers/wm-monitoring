@@ -6,11 +6,12 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-const clientsRouter  = require('./routes/clients');
-const testsRouter    = require('./routes/tests');
-const settingsRouter = require('./routes/settings');
-const db             = require('./db');
-const scheduler      = require('./services/scheduler');
+const clientsRouter      = require('./routes/clients');
+const testsRouter        = require('./routes/tests');
+const settingsRouter     = require('./routes/settings');
+const formWebhookRouter  = require('./routes/formWebhook');
+const db                 = require('./db');
+const scheduler          = require('./services/scheduler');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -30,9 +31,10 @@ fs.mkdirSync(CLIENTS_DIR, { recursive: true });
 app.use('/data', express.static(CLIENTS_DIR));
 
 // ── API Routes ─────────────────────────────────────────────────────────────────
-app.use('/api/clients',  clientsRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/api',          testsRouter);
+app.use('/api/clients',       clientsRouter);
+app.use('/api/settings',      settingsRouter);
+app.use('/api/form-webhook',  formWebhookRouter);
+app.use('/api',               testsRouter);
 
 // ── Health check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

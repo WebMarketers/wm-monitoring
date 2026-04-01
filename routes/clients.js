@@ -67,6 +67,12 @@ router.post('/', async (req, res) => {
       alert_slack_enabled: req.body.alert_slack_enabled !== undefined ? Boolean(req.body.alert_slack_enabled) : true,
       alert_email_enabled: req.body.alert_email_enabled !== undefined ? Boolean(req.body.alert_email_enabled) : false,
       alert_email: req.body.alert_email || null,
+      lead_dry_spell_days: req.body.lead_dry_spell_days !== undefined
+        ? (req.body.lead_dry_spell_days !== '' ? parseInt(req.body.lead_dry_spell_days, 10) : null)
+        : 3,
+      form_breakpoint_days: req.body.form_breakpoint_days !== undefined
+        ? (req.body.form_breakpoint_days !== '' ? parseInt(req.body.form_breakpoint_days, 10) : null)
+        : null,
     });
 
     backstop.initClient(client).catch(err => console.warn(`[backstop] initClient: ${err.message}`));
@@ -101,6 +107,14 @@ router.put('/:id', async (req, res) => {
       alert_slack_enabled: req.body.alert_slack_enabled !== undefined ? Boolean(req.body.alert_slack_enabled) : client.alert_slack_enabled,
       alert_email_enabled: req.body.alert_email_enabled !== undefined ? Boolean(req.body.alert_email_enabled) : client.alert_email_enabled,
       alert_email: req.body.alert_email !== undefined ? (req.body.alert_email || null) : client.alert_email,
+      lead_dry_spell_days: req.body.lead_dry_spell_days !== undefined
+        ? (req.body.lead_dry_spell_days !== '' && req.body.lead_dry_spell_days !== null
+            ? parseInt(req.body.lead_dry_spell_days, 10) : null)
+        : client.lead_dry_spell_days,
+      form_breakpoint_days: req.body.form_breakpoint_days !== undefined
+        ? (req.body.form_breakpoint_days !== '' && req.body.form_breakpoint_days !== null
+            ? parseInt(req.body.form_breakpoint_days, 10) : null)
+        : client.form_breakpoint_days,
     });
 
     scheduler.rescheduleClient(client.id).catch(() => {});

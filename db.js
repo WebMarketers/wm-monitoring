@@ -37,6 +37,25 @@ async function bootstrap() {
       t.boolean('alert_email_enabled').defaultTo(false);
       t.string('alert_email');
     });
+    // Migrate: add lead monitoring columns
+    const hasLeadDrySpell = await knex.schema.hasColumn('clients', 'lead_dry_spell_days');
+    if (!hasLeadDrySpell) await knex.schema.table('clients', t => {
+      t.integer('lead_dry_spell_days').defaultTo(3); // null = disabled
+      t.string('last_organic_lead_at');               // ISO timestamp from WP plugin
+      t.string('last_lead_check_at');                 // last time we polled the plugin
+      t.string('lead_status').defaultTo('unknown');   // ok | dry_spell | broken | unknown
+    });
+    // Migrate: add form monitoring columns
+    const hasFormStatus = await knex.schema.hasColumn('clients', 'form_status');
+    if (!hasFormStatus) await knex.schema.table('clients', t => {
+      t.string('form_status').defaultTo('unknown');   // ok | ok_tested | broken | testing | unknown
+      t.string('last_real_form_at');                  // last real (non-test) submission timestamp
+      t.string('form_last_test_at');                  // last time we ran a silent test
+      t.boolean('form_last_test_ok').defaultTo(null); // did the last test pass?
+      t.boolean('form_test_triggered').defaultTo(false); // has a test been fired since last real sub?
+      t.integer('form_breakpoint_days').defaultTo(null); // site-specific override (null = use global)
+      t.float('form_days_since_last').defaultTo(null);   // cached for dashboard
+    });
   }
 
   const hasRuns = await knex.schema.hasTable('test_runs');
@@ -50,6 +69,24 @@ async function bootstrap() {
       t.text('details'); // JSON
       t.timestamp('started_at').defaultTo(knex.fn.now());
       t.timestamp('completed_at');
+    });
+  }
+
+  // Form submission log table
+  const hasFormLog = await knex.schema.hasTable('form_submission_log');
+  if (!hasFormLog) {
+    await knex.schema.createTable('form_submission_log', t => {
+      t.increments('id').primary();
+      t.integer('client_id').notNullable().references('id').inTable('clients').onDelete('CASCADE');
+      t.integer('form_id');
+      t.string('form_name');
+      t.string('form_type');                          // gravity_forms | contact_form_7 | unknown
+      t.string('submitted_at').notNullable();         // ISO timestamp
+      t.boolean('is_test').notNullable().defaultTo(false);
+      t.string('status').notNullable().defaultTo('received'); // received | test_passed | test_failed
+      t.text('error');                                // error message if test failed
+      t.text('details');                              // JSON from plugin response
+      t.timestamp('created_at').defaultTo(knex.fn.now());
     });
   }
 
@@ -80,10 +117,21 @@ async function bootstrap() {
       'smtp_from', 'smtp_from_name', 'smtp_secure', 'smtp_default_email',
       'email_provider',
       'aws_access_key_id', 'aws_secret_access_key', 'aws_region', 'aws_ses_from',
+      'lead_monitoring_enabled', 'lead_check_interval_hours', 'lead_dry_spell_days_default',
+      'form_monitoring_enabled', 'form_check_interval_hours', 'form_breakpoint_days_default', 'form_report_interval_hours',
     ];
     for (const key of allowed) {
       const exists = await knex('settings').where({ key }).first();
-      if (!exists) await knex('settings').insert({ key, value: key === 'email_provider' ? 'ses' : '' });
+      let defaultVal = '';
+      if (key === 'email_provider')                 defaultVal = 'ses';
+      if (key === 'lead_monitoring_enabled')         defaultVal = 'false';
+      if (key === 'lead_check_interval_hours')       defaultVal = '6';
+      if (key === 'lead_dry_spell_days_default')     defaultVal = '3';
+      if (key === 'form_monitoring_enabled')         defaultVal = 'false';
+      if (key === 'form_check_interval_hours')       defaultVal = '1';
+      if (key === 'form_breakpoint_days_default')    defaultVal = '3';
+      if (key === 'form_report_interval_hours')      defaultVal = '6';
+      if (!exists) await knex('settings').insert({ key, value: defaultVal });
     }
   }
 }
@@ -145,6 +193,29 @@ async function updateClient(data) {
   const { id, ...rest } = data;
   await knex('clients').where({ id }).update(rest);
   return getClientById(id);
+}
+
+async function updateLeadStatus(clientId, { last_organic_lead_at, last_lead_check_at, lead_status }) {
+  const update = { last_lead_check_at: new Date().toISOString() };
+  if (lead_status !== undefined)           update.lead_status = lead_status;
+  if (last_organic_lead_at !== undefined)  update.last_organic_lead_at = last_organic_lead_at;
+  if (last_lead_check_at !== undefined)    update.last_lead_check_at = last_lead_check_at;
+  await knex('clients').where({ id: clientId }).update(update);
+}
+
+async function updateFormStatus(clientId, fields) {
+  // Only update provided fields
+  const allowed = [
+    'form_status', 'last_real_form_at', 'form_last_test_at',
+    'form_last_test_ok', 'form_test_triggered', 'form_breakpoint_days',
+    'form_days_since_last',
+  ];
+  const update = {};
+  for (const key of allowed) {
+    if (fields[key] !== undefined) update[key] = fields[key];
+  }
+  if (Object.keys(update).length === 0) return;
+  await knex('clients').where({ id: clientId }).update(update);
 }
 
 async function deleteClient(id) {
@@ -209,6 +280,39 @@ async function getLastRun(clientId, type) {
   return knex('test_runs').where({ client_id: clientId, type }).orderBy('id', 'desc').first();
 }
 
+// ── Form Submission Log ───────────────────────────────────────────────────────
+async function insertFormSubmissionLog(data) {
+  const [id] = await knex('form_submission_log').insert(data);
+  return knex('form_submission_log').where({ id }).first();
+}
+
+async function getFormSubmissionLogs(clientId, limit = 50) {
+  return knex('form_submission_log')
+    .where({ client_id: clientId })
+    .orderBy('id', 'desc')
+    .limit(limit);
+}
+
+async function getFormSubmissionLogsByDate(clientId, fromDate, toDate) {
+  return knex('form_submission_log')
+    .where({ client_id: clientId })
+    .where('submitted_at', '>=', fromDate)
+    .where('submitted_at', '<=', toDate)
+    .orderBy('submitted_at', 'desc');
+}
+
+async function getRecentFormActivity(limit = 50) {
+  return knex('form_submission_log as l')
+    .join('clients as c', 'l.client_id', 'c.id')
+    .select(
+      'l.id', 'l.form_id', 'l.form_name', 'l.form_type',
+      'l.submitted_at', 'l.is_test', 'l.status', 'l.error',
+      'c.id as client_id', 'c.name as client_name', 'c.slug'
+    )
+    .orderBy('l.id', 'desc')
+    .limit(limit);
+}
+
 // ── Activity Feed ──────────────────────────────────────────────────────────────────
 async function getRecentActivity(limit = 20) {
   return knex('test_runs as r')
@@ -225,8 +329,10 @@ async function getRecentActivity(limit = 20) {
 module.exports = {
   ready,
   getAllClients, getClientById, getClientBySlug,
-  insertClient, updateClient, deleteClient,
+  insertClient, updateClient, updateLeadStatus, updateFormStatus, deleteClient,
   insertRun, getRunById, updateRun, updateRunLog,
   getRunsForClient, getLastRun, getRecentActivity,
   getSettings, setSetting, setSettings,
+  insertFormSubmissionLog, getFormSubmissionLogs,
+  getFormSubmissionLogsByDate, getRecentFormActivity,
 };

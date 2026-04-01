@@ -468,45 +468,41 @@ function renderClientDetail(client) {
       <!-- Mismatch Breakdown Card (full width) -->
       ${renderMismatchCard(visualRuns)}
 
-      <!-- Form Testing Card -->
+      <!-- Form Monitoring Card (Passive + Active) -->
       <div class="detail-card" id="form-card-${client.id}">
         <div class="detail-card-header">
           <div class="detail-card-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            Contact Form Test
+            Form Monitoring
           </div>
-          <div id="form-status-badge-${client.id}">
-            ${statusBadge(client.last_form_status)}
-          </div>
+          <div>${renderFormStatusBadge(client)}</div>
         </div>
         <div class="detail-card-body">
+
           ${!client.monitor_key ? `
-            <div style="padding:14px;background:var(--warning-bg);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:13px;color:var(--warning);">
+            <div style="padding:14px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:8px;font-size:13px;color:var(--warning);">
               ⚠️ WM Monitor key not configured. Install the WordPress plugin and paste the key in site settings.
             </div>
-          ` : `
-            <div class="test-detail-grid" id="form-details-${client.id}">
-              ${renderFormDetails(lastFormDetails, client)}
-            </div>
-          `}
+          ` : renderFormMonitoringBody(client)}
 
-          <div class="action-buttons">
+          <div class="action-buttons" style="margin-top:12px">
             <button class="btn btn-primary btn-sm" id="btn-form-test-${client.id}"
               onclick="runFormTest(${client.id})" ${!client.monitor_key ? 'disabled' : ''}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              Run Form Test
+              Run Manual Test
             </button>
+            ${client.monitor_key ? `
+            <button class="btn btn-secondary btn-sm" onclick="triggerSilentTest(${client.id})">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.22" y1="4.22" x2="19.78" y2="19.78"/></svg>
+              Trigger Silent Test
+            </button>` : ''}
           </div>
 
-          <div class="form-group" style="margin-top:4px">
-            <label class="form-label" style="font-size:11px;color:var(--text-3)">
-              Plugin endpoint: ${client.url.replace(/\/$/, '')}/wp-json/wm-monitor/v1/test-form
-            </label>
-          </div>
+          <div id="form-submit-log-${client.id}" style="margin-top:16px"></div>
 
           ${formRuns.length > 0 ? `
-          <div class="run-history">
-            <div class="run-history-title">Recent Tests</div>
+          <div class="run-history" style="margin-top:8px">
+            <div class="run-history-title">Manual Test Runs</div>
             ${formRuns.map(run => `
               <div class="run-item" onclick="openLog(${run.id})">
                 <div class="run-item-left">
@@ -519,10 +515,17 @@ function renderClientDetail(client) {
               </div>
             `).join('')}
           </div>` : ''}
+
+          <div style="margin-top:12px;font-size:11px;color:var(--text-3)">
+            Plugin: <code>${client.url.replace(/\/$/, '')}/wp-json/wm-monitor/v1</code>
+          </div>
         </div>
       </div>
     </div>
   `;
+
+  // Load passive submission log async
+  if (client.monitor_key) loadFormSubmissionLog(client.id);
 }
 
 function renderFormDetails(details, client) {
@@ -579,7 +582,142 @@ function formatDate(str) {
   return d.toLocaleDateString('en-CA') + ' ' + d.toLocaleTimeString('en-CA', { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Mismatch Breakdown Card ───────────────────────────────────────────────────
+// ── Form Monitoring Helpers ───────────────────────────────────────────────────
+
+function renderFormStatusBadge(client) {
+  const s = client.form_status || 'unknown';
+  const map = {
+    ok:         { label: 'Receiving',   cls: 'badge-passed' },
+    ok_tested:  { label: 'Test Passed', cls: 'badge-passed' },
+    broken:     { label: 'Form Broken', cls: 'badge-failed' },
+    testing:    { label: 'Testing…',    cls: 'badge-running' },
+    dry_spell:  { label: 'Dry Spell',   cls: 'badge-error' },
+    unknown:    { label: 'Unknown',     cls: 'badge-none' },
+  };
+  const { label, cls } = map[s] || map.unknown;
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function renderFormMonitoringBody(client) {
+  const breakpointDays  = client.form_breakpoint_days || '(global)';
+  const daysSince       = client.form_days_since_last != null ? parseFloat(client.form_days_since_last) : null;
+  const bpNum           = typeof client.form_breakpoint_days === 'number' ? client.form_breakpoint_days : null;
+  const pct             = (daysSince != null && bpNum) ? Math.min((daysSince / bpNum) * 100, 100).toFixed(0) : null;
+  const daysRemaining   = (daysSince != null && bpNum) ? Math.max(0, bpNum - daysSince).toFixed(1) : null;
+  const isOver          = pct !== null && pct >= 100;
+
+  const progressBar = pct !== null ? `
+    <div style="margin:10px 0 6px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-bottom:4px">
+        <span>${daysSince?.toFixed(1)} days since last submission</span>
+        <span>${daysRemaining} days until auto-test</span>
+      </div>
+      <div style="height:6px;background:var(--surface-3);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${isOver ? 'var(--danger)' : pct > 70 ? 'var(--warning)' : 'var(--success)'};border-radius:4px;transition:width 0.5s"></div>
+      </div>
+    </div>` : '';
+
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px">
+      <div style="background:var(--surface-2);border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Last Real Submission</div>
+        <div style="font-size:14px;font-weight:600">${client.last_real_form_at ? timeAgo(client.last_real_form_at) : '—'}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">${client.last_real_form_at ? formatDate(client.last_real_form_at) : 'No submissions recorded'}</div>
+      </div>
+      <div style="background:var(--surface-2);border-radius:8px;padding:12px">
+        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.05em">Breakpoint</div>
+        <div style="font-size:14px;font-weight:600">${client.form_breakpoint_days ? client.form_breakpoint_days + ' days' : 'Global default'}</div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px">${client.form_test_triggered ? '🟡 Test already triggered' : '✅ Watching for submissions'}</div>
+      </div>
+    </div>
+    ${progressBar}
+    ${client.form_last_test_at ? `
+    <div style="padding:10px 12px;background:${client.form_last_test_ok ? 'rgba(16,185,129,0.07)' : 'rgba(239,68,68,0.07)'};border:1px solid ${client.form_last_test_ok ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'};border-radius:8px;font-size:12px;margin-top:6px">
+      <strong>Last Auto-Test:</strong> ${formatDate(client.form_last_test_at)} — ${client.form_last_test_ok ? '✅ Passed (form working)' : '❌ Failed (alert sent to support)'}
+    </div>` : ''}
+  `;
+}
+
+// Load passive form submission log for a client
+async function loadFormSubmissionLog(clientId) {
+  const container = document.getElementById(`form-submit-log-${clientId}`);
+  if (!container) return;
+
+  try {
+    const res  = await fetch(`/api/form-webhook/logs/${clientId}?limit=20`);
+    const data = await res.json();
+    const logs = data.data || [];
+
+    if (!logs.length) {
+      container.innerHTML = `
+        <div style="font-size:12px;color:var(--text-3);padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
+          📭 No form submissions recorded yet. Install the WP plugin and set the Webhook URL to start tracking.
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px">
+          📬 Recent Submission Log
+        </div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${logs.map(l => {
+            const isTest  = l.is_test;
+            const icon    = isTest ? '🟡' : '✅';
+            const label   = isTest
+              ? (l.status === 'test_passed' ? 'Auto-test: Passed' : 'Auto-test: Failed')
+              : 'Real submission';
+            const typeTag = l.form_type === 'gravity_forms' ? 'GF' : l.form_type === 'contact_form_7' ? 'CF7' : '?';
+            return `
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--surface-2);border-radius:6px;font-size:12px">
+                <span>${icon}</span>
+                <span style="flex:1;font-weight:500">${label}</span>
+                <span style="color:var(--text-3);background:var(--surface-3);padding:1px 6px;border-radius:4px;font-size:11px">${typeTag}</span>
+                ${l.form_name ? `<span style="color:var(--text-3)">${l.form_name}</span>` : ''}
+                <span style="color:var(--text-3);font-size:11px;white-space:nowrap">${timeAgo(l.submitted_at)}</span>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  } catch (err) {
+    if (container) container.innerHTML = '';
+  }
+}
+
+// Trigger a silent auto-test (without resetting the breakpoint counter)
+async function triggerSilentTest(clientId) {
+  try {
+    toast('🔇 Triggering silent form test…', 'default', 3000);
+    const res  = await fetch(`/api/form-webhook/trigger-test/${clientId}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      toast('✅ Silent test triggered — check logs in a moment', 'success');
+      setTimeout(() => loadFormSubmissionLog(clientId), 5000);
+    } else {
+      toast(data.error || 'Failed to trigger test', 'error');
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// Save form monitor global settings
+async function saveFormMonitorSettings() {
+  const breakpoint = parseInt(document.getElementById('s-form-breakpoint')?.value) || 3;
+  const interval   = parseInt(document.getElementById('s-form-report-interval')?.value) || 6;
+  try {
+    await api.post('/settings', {
+      form_breakpoint_days_default: breakpoint,
+      form_report_interval_hours:   interval,
+    });
+    toast('✅ Form monitoring settings saved', 'success');
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+
 function renderMismatchCard(visualRuns) {
   // Need at least 1 run with mismatch data
   const latest   = visualRuns.find(r => r.details?.mismatch?.length);
@@ -819,6 +957,60 @@ async function renderSettings() {
                   "></span>
                 </span>
               </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Form Monitoring Settings Card -->
+        <div class="detail-card">
+          <div class="detail-card-header">
+            <div class="detail-card-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Passive Form Monitoring
+            </div>
+          </div>
+          <div class="detail-card-body" style="gap:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--border)">
+              <div>
+                <div style="font-size:14px;font-weight:600">Enable Passive Form Monitoring</div>
+                <div style="font-size:12px;color:var(--text-3);margin-top:3px">Track real user form submissions from Gravity Forms &amp; CF7 via webhook. Checks breakpoints hourly.</div>
+              </div>
+              <label class="toggle" style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer">
+                <input type="checkbox" id="s-form-monitor-enabled" ${settings.form_monitoring_enabled ? 'checked' : ''}
+                  style="opacity:0;width:0;height:0;position:absolute"
+                  onchange="saveSettingToggle('form_monitoring_enabled', this.checked)" />
+                <span style="position:absolute;inset:0;border-radius:24px;background:${settings.form_monitoring_enabled ? 'var(--success)' : 'var(--surface-3)'};transition:0.25s;display:flex;align-items:center;padding:0 3px;" id="toggle-knob-form-monitor">
+                  <span style="width:18px;height:18px;border-radius:50%;background:#fff;transition:0.25s;transform:${settings.form_monitoring_enabled ? 'translateX(20px)' : 'translateX(0)'};"></span>
+                </span>
+              </label>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label" for="s-form-breakpoint">Global Breakpoint (Days)</label>
+                <input class="form-input" type="number" id="s-form-breakpoint" min="1" max="90"
+                  placeholder="3"
+                  value="${settings.form_breakpoint_days_default || 3}" />
+                <span class="form-hint">If a site has no real submission for this many days, an automated silent test fires. Sites can override this per-site in Edit Site.</span>
+              </div>
+              <div class="form-group" style="margin-bottom:0">
+                <label class="form-label" for="s-form-report-interval">Dashboard Report Interval</label>
+                <select class="form-input" id="s-form-report-interval">
+                  <option value="6" ${(settings.form_report_interval_hours||6)==6?'selected':''}>Every 6 hours (recommended)</option>
+                  <option value="3" ${settings.form_report_interval_hours==3?'selected':''}>Every 3 hours</option>
+                  <option value="12" ${settings.form_report_interval_hours==12?'selected':''}>Every 12 hours</option>
+                  <option value="24" ${settings.form_report_interval_hours==24?'selected':''}>Daily</option>
+                </select>
+                <span class="form-hint">How often the dashboard form report refreshes</span>
+              </div>
+            </div>
+            <div style="padding:10px 14px;background:rgba(147,24,52,0.06);border:1px solid rgba(147,24,52,0.15);border-radius:8px;font-size:12px;color:var(--text-2);line-height:1.7">
+              📋 <strong>How it works:</strong> The WM Monitor WordPress plugin reports real form submissions automatically. If a site goes silent past the breakpoint, a <em>silent test</em> fires using Jayson Yavuz test data — the site owner never sees this email. Any failure alerts <strong>support@teamwebmarketers.ca</strong> immediately.
+            </div>
+            <div class="action-buttons">
+              <button class="btn btn-primary btn-sm" onclick="saveFormMonitorSettings()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+                Save Form Settings
+              </button>
             </div>
           </div>
         </div>
@@ -1362,8 +1554,9 @@ function openAddModal() {
   document.getElementById('modal-submit-btn').textContent = 'Add Site';
   document.getElementById('client-form').reset();
   document.getElementById('client-id').value = '';
-  document.getElementById('f-email').value = 'test@webmarketers.ca';
+  document.getElementById('f-email').value = 'dev@teamwebmarketers.ca';
   document.getElementById('f-form-id').value = '1';
+  document.getElementById('f-breakpoint').value = '';
   document.getElementById('f-schedule').value = '';
   document.getElementById('f-threshold').value = '';
   document.getElementById('f-alert-slack').checked = true;
@@ -1381,7 +1574,8 @@ async function openEditModal(clientId) {
   document.getElementById('f-url').value = client.url;
   document.getElementById('f-key').value = client.monitor_key || '';
   document.getElementById('f-form-id').value = client.form_id || 1;
-  document.getElementById('f-email').value = client.test_email || 'test@webmarketers.ca';
+  document.getElementById('f-email').value = client.test_email || 'dev@teamwebmarketers.ca';
+  document.getElementById('f-breakpoint').value = client.form_breakpoint_days != null ? client.form_breakpoint_days : '';
   document.getElementById('f-notes').value = client.notes || '';
   document.getElementById('f-schedule').value = client.custom_schedule || '';
   document.getElementById('f-threshold').value = client.custom_mismatch_threshold != null ? String(client.custom_mismatch_threshold) : '';
@@ -1401,6 +1595,8 @@ async function submitClientForm(e) {
     monitor_key: document.getElementById('f-key').value.trim(),
     form_id: parseInt(document.getElementById('f-form-id').value) || 1,
     test_email: document.getElementById('f-email').value.trim(),
+    form_breakpoint_days: document.getElementById('f-breakpoint').value
+      ? parseInt(document.getElementById('f-breakpoint').value) : null,
     slack_webhook: document.getElementById('f-slack')?.value.trim(),
     notes:                     document.getElementById('f-notes').value.trim(),
     custom_schedule:           document.getElementById('f-schedule').value || null,

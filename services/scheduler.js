@@ -1,10 +1,15 @@
 'use strict';
-const cron = require('node-cron');
-const db = require('../db');
-const backstop = require('./backstop');
+const cron        = require('node-cron');
+const db          = require('../db');
+const backstop    = require('./backstop');
+const leadMonitor = require('./leadMonitor');
+const formMonitor = require('./formMonitor');
 
 // Map of clientId → cron.Task
 const tasks = new Map();
+let leadCheckTask   = null;   // single global lead-check cron
+let formCheckTask   = null;   // single global form breakpoint cron
+let formReportTask  = null;   // single global form 6hr report cron
 let isSchedulerReady = false;
 
 /**
@@ -119,6 +124,39 @@ async function reschedule() {
   }
 
   console.log(`[scheduler] ${tasks.size} client(s) scheduled.`);
+
+  // ── Lead monitor: run every N hours ─────────────────────────────────────
+  if (leadCheckTask) { try { leadCheckTask.stop(); } catch (_) {} }
+  leadCheckTask = null;
+
+  const intervalHours = Math.max(1, parseInt(settings.lead_check_interval_hours ?? '6', 10));
+  const leadCron = `0 */${intervalHours} * * *`;
+  if (cron.validate(leadCron)) {
+    leadCheckTask = cron.schedule(leadCron, () => leadMonitor.runLeadCheck(), { timezone: 'America/New_York' });
+    console.log(`[scheduler] Lead monitor scheduled → "${leadCron}" (every ${intervalHours}h)`);
+  }
+
+  // ── Form monitor: run breakpoint check every hour ─────────────────────
+  if (formCheckTask) { try { formCheckTask.stop(); } catch (_) {} }
+  formCheckTask = null;
+  if (formReportTask) { try { formReportTask.stop(); } catch (_) {} }
+  formReportTask = null;
+
+  if (settings.form_monitoring_enabled) {
+    const formCheckHours = Math.max(1, parseInt(settings.form_check_interval_hours ?? '1', 10));
+    const formCheckCron  = `0 */${formCheckHours} * * *`;
+    if (cron.validate(formCheckCron)) {
+      formCheckTask = cron.schedule(formCheckCron, () => formMonitor.runFormBreakpointCheck(), { timezone: 'America/New_York' });
+      console.log(`[scheduler] Form breakpoint check scheduled → "${formCheckCron}" (every ${formCheckHours}h)`);
+    }
+
+    const reportHours  = Math.max(1, parseInt(settings.form_report_interval_hours ?? '6', 10));
+    const reportCron   = `0 */${reportHours} * * *`;
+    if (cron.validate(reportCron)) {
+      formReportTask = cron.schedule(reportCron, () => formMonitor.generateFormReport(), { timezone: 'America/New_York' });
+      console.log(`[scheduler] Form report scheduled → "${reportCron}" (every ${reportHours}h)`);
+    }
+  }
 }
 
 /**
