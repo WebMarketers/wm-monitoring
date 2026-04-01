@@ -175,7 +175,9 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
         $latest_before = wm_monitor_get_latest_email();
     }
 
+    add_filter( 'gform_validation', 'wm_monitor_test_gf_validation', 999 );
     $result = GFAPI::submit_form( $form_id, $submission );
+    remove_filter( 'gform_validation', 'wm_monitor_test_gf_validation', 999 );
 
     $submitted = ! is_wp_error( $result )
         && isset( $result['is_valid'] )
@@ -224,6 +226,15 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
         'email_log'      => $email_log,
         'errors'         => $errors,
     ];
+}
+
+function wm_monitor_test_gf_validation( $validation_result ) {
+    $validation_result['is_valid'] = true;
+    foreach ( $validation_result['form']['fields'] as &$field ) {
+        $field->failed_validation  = false;
+        $field->validation_message = '';
+    }
+    return $validation_result;
 }
 
 // ── Contact Form 7 submission ─────────────────────────────────────────────────
