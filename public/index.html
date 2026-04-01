@@ -143,13 +143,19 @@
               <span class="form-hint">Found in WP Dashboard → WM Monitor</span>
             </div>
             <div class="form-group">
-              <label class="form-label" for="f-form-id">Gravity Form ID</label>
+              <label class="form-label" for="f-form-id">Primary Form ID</label>
               <input class="form-input" type="number" id="f-form-id" placeholder="1" value="1" min="1" />
+              <span class="form-hint">GF or CF7 form ID to test</span>
             </div>
-            <div class="form-group full-width">
+            <div class="form-group">
+              <label class="form-label" for="f-breakpoint">Breakpoint (Days)</label>
+              <input class="form-input" type="number" id="f-breakpoint" placeholder="Global default (3)" min="1" max="90" />
+              <span class="form-hint">If no real submission in this many days → auto-test. Leave blank for global default.</span>
+            </div>
+            <div class="form-group">
               <label class="form-label" for="f-email">Test Email Address</label>
-              <input class="form-input" type="email" id="f-email" placeholder="test@webmarketers.ca" value="test@webmarketers.ca" />
-              <span class="form-hint">Email address used for form submission testing</span>
+              <input class="form-input" type="email" id="f-email" placeholder="dev@teamwebmarketers.ca" value="dev@teamwebmarketers.ca" />
+              <span class="form-hint">Used for email delivery verification via Post SMTP</span>
             </div>
           </div>
 
