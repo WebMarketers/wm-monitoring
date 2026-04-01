@@ -194,7 +194,7 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
     $email_log  = null;
     if ( $submitted && wm_monitor_has_post_smtp() ) {
         sleep( 2 );
-        $log_entry = wm_monitor_get_email_log( 'dev@teamwebmarketers.ca', $before_time );
+        $log_entry = wm_monitor_get_email_log( '', $before_time );
         if ( $log_entry ) {
             $email_sent = true;
             $email_log  = [
@@ -274,13 +274,27 @@ function wm_monitor_submit_cf7( int $form_id ): array {
     $submitted = isset( $result['status'] ) && in_array( $result['status'], [ 'mail_sent', 'mail_failed' ], true );
     $email_ok  = isset( $result['status'] ) && $result['status'] === 'mail_sent';
 
+    $email_log = null;
+    if ( $email_ok && wm_monitor_has_post_smtp() ) {
+        sleep( 2 );
+        $log_entry = wm_monitor_get_email_log( '', $before_time );
+        if ( $log_entry ) {
+            $email_log = [
+                'to'      => $log_entry['receiver'] ?? $log_entry['to_email'] ?? '',
+                'subject' => $log_entry['subject'] ?? '',
+                'status'  => $log_entry['status'] ?? 'sent',
+                'sent_at' => $log_entry['created'] ?? $log_entry['sent_at'] ?? $before_time,
+            ];
+        }
+    }
+
     return [
         'form_type'      => 'contact_form_7',
         'form_id'        => $form_id,
         'form_name'      => $cf7->title(),
         'form_submitted' => $submitted,
         'email_sent'     => $email_ok,
-        'email_log'      => null,
+        'email_log'      => $email_log,
         'errors'         => ! $submitted ? ( $result['message'] ?? 'Unknown CF7 error' ) : null,
         'cf7_status'     => $result['status'] ?? null,
     ];

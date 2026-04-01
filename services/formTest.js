@@ -92,7 +92,7 @@ async function runFormTest(runId, client) {
     } else if (!pingResult.post_smtp) {
       log += `[${new Date().toISOString()}]    ⚠️ Post SMTP not installed — cannot verify email delivery\n`;
     } else {
-      log += `[${new Date().toISOString()}]    ❌ No email log entry found for ${client.test_email}\n`;
+      log += `[${new Date().toISOString()}]    ❌ No recent email log entry found since form submission\n`;
     }
 
     // Determine overall status
