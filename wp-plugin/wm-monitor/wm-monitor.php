@@ -105,12 +105,16 @@ function wm_monitor_test_form( WP_REST_Request $request ) {
         }
     }
 
-    // ── Set silent mode flag (suppresses owner email) ─────────────────────
+    $silent_mode = (bool) $request->get_param( 'silent_mode' );
+    $test_email  = sanitize_email( $request->get_param( 'test_email' ) );
+
     if ( $silent_mode ) {
-        update_option( 'wm_monitor_silent_mode_active', true, false );
         add_filter( 'wp_mail', 'wm_monitor_suppress_test_email', 1 );
-        add_filter( 'gform_disable_notification', '__return_true', 99 );
+        add_filter( 'gform_disable_notification', '__return_true' );
     }
+
+    // Force GF to send notifications synchronously during tests so we can check Post SMTP right after
+    add_filter( 'gform_use_post_background_tasks', '__return_false', 99 );
 
     $response = [];
 
@@ -164,8 +168,12 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
         ];
     }
 
-    $submission   = wm_monitor_build_gf_submission( $form );
-    $before_time  = current_time( 'mysql' );
+    $submission    = wm_monitor_build_gf_submission( $form );
+    
+    $latest_before = null;
+    if ( wm_monitor_has_post_smtp() ) {
+        $latest_before = wm_monitor_get_latest_email();
+    }
 
     $result = GFAPI::submit_form( $form_id, $submission );
 
@@ -193,15 +201,15 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
     $email_sent = false;
     $email_log  = null;
     if ( $submitted && wm_monitor_has_post_smtp() ) {
-        sleep( 2 );
-        $log_entry = wm_monitor_get_email_log( '', $before_time );
-        if ( $log_entry ) {
+        sleep( 3 );
+        $latest_after = wm_monitor_get_latest_email();
+        if ( $latest_after && ( ! $latest_before || $latest_after !== $latest_before ) ) {
             $email_sent = true;
             $email_log  = [
-                'to'      => $log_entry['receiver'] ?? $log_entry['to_email'] ?? '',
-                'subject' => $log_entry['subject'] ?? '',
-                'status'  => $log_entry['status'] ?? 'sent',
-                'sent_at' => $log_entry['created'] ?? $log_entry['sent_at'] ?? $before_time,
+                'to'      => $latest_after['receiver'] ?? $latest_after['to_email'] ?? '',
+                'subject' => $latest_after['subject'] ?? '',
+                'status'  => $latest_after['status'] ?? 'sent',
+                'sent_at' => $latest_after['created'] ?? $latest_after['sent_at'] ?? current_time( 'mysql' ),
             ];
         }
     }
@@ -266,8 +274,12 @@ function wm_monitor_submit_cf7( int $form_id ): array {
     // Suppress CF7 spam/honeypot checks during test
     add_filter( 'wpcf7_spam', '__return_false', 99 );
 
-    $before_time = current_time( 'mysql' );
-    $result      = $cf7->submit();
+    $latest_before = null;
+    if ( wm_monitor_has_post_smtp() ) {
+        $latest_before = wm_monitor_get_latest_email();
+    }
+
+    $result = $cf7->submit();
 
     remove_filter( 'wpcf7_spam', '__return_false', 99 );
 
@@ -276,14 +288,14 @@ function wm_monitor_submit_cf7( int $form_id ): array {
 
     $email_log = null;
     if ( $email_ok && wm_monitor_has_post_smtp() ) {
-        sleep( 2 );
-        $log_entry = wm_monitor_get_email_log( '', $before_time );
-        if ( $log_entry ) {
+        sleep( 3 );
+        $latest_after = wm_monitor_get_latest_email();
+        if ( $latest_after && ( ! $latest_before || $latest_after !== $latest_before ) ) {
             $email_log = [
-                'to'      => $log_entry['receiver'] ?? $log_entry['to_email'] ?? '',
-                'subject' => $log_entry['subject'] ?? '',
-                'status'  => $log_entry['status'] ?? 'sent',
-                'sent_at' => $log_entry['created'] ?? $log_entry['sent_at'] ?? $before_time,
+                'to'      => $latest_after['receiver'] ?? $latest_after['to_email'] ?? '',
+                'subject' => $latest_after['subject'] ?? '',
+                'status'  => $latest_after['status'] ?? 'sent',
+                'sent_at' => $latest_after['created'] ?? $latest_after['sent_at'] ?? current_time('mysql'),
             ];
         }
     }
@@ -407,7 +419,7 @@ function wm_monitor_has_post_smtp(): bool {
     return false;
 }
 
-function wm_monitor_get_email_log( string $to_email, string $after_time ): ?array {
+function wm_monitor_get_latest_email(): ?array {
     global $wpdb;
     $tables = [
         $wpdb->prefix . 'postman_sent_mail',
@@ -416,24 +428,13 @@ function wm_monitor_get_email_log( string $to_email, string $after_time ): ?arra
     ];
 
     foreach ( $tables as $table ) {
-        if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table}'" ) !== $table ) continue;
-
-        $columns   = $wpdb->get_col( "DESCRIBE {$table}", 0 );
-        $email_col = in_array( 'receiver', $columns, true ) ? 'receiver' : ( in_array( 'to_email', $columns, true ) ? 'to_email' : null );
-        $time_col  = in_array( 'created', $columns, true ) ? 'created' : ( in_array( 'sent_at', $columns, true ) ? 'sent_at' : null );
-
-        if ( ! $email_col ) continue;
-
-        $where_time = $time_col ? $wpdb->prepare( "AND {$time_col} >= %s", $after_time ) : '';
-        $row = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM {$table} WHERE {$email_col} LIKE %s {$where_time} ORDER BY id DESC LIMIT 1",
-                '%' . $wpdb->esc_like( $to_email ) . '%'
-            ),
-            ARRAY_A
-        );
-
-        if ( $row ) return $row;
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table}'" ) === $table ) {
+            // Fetch the last record inserted (order by column 1, which is usually ID)
+            $row = $wpdb->get_row( "SELECT * FROM {$table} ORDER BY 1 DESC LIMIT 1", ARRAY_A );
+            if ( $row ) {
+                return $row;
+            }
+        }
     }
 
     return null;
