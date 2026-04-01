@@ -312,6 +312,7 @@ function wm_monitor_build_gf_submission( array $form ): array {
         switch ( $field->type ) {
             case 'email':
                 $data[ "input_{$id}" ] = $test['email'];
+                $data[ "input_{$id}_2" ] = $test['email']; // For confirmation fields
                 break;
 
             case 'name':
@@ -383,7 +384,7 @@ function wm_monitor_build_gf_submission( array $form ): array {
 // ── Post SMTP helpers ─────────────────────────────────────────────────────────
 function wm_monitor_has_post_smtp(): bool {
     global $wpdb;
-    foreach ( [ 'postman_sent_mail', 'postsmtp_log' ] as $table ) {
+    foreach ( [ 'postman_sent_mail', 'postsmtp_log', 'post_smtp_logs' ] as $table ) {
         $full = $wpdb->prefix . $table;
         if ( $wpdb->get_var( "SHOW TABLES LIKE '{$full}'" ) === $full ) {
             return true;
@@ -397,6 +398,7 @@ function wm_monitor_get_email_log( string $to_email, string $after_time ): ?arra
     $tables = [
         $wpdb->prefix . 'postman_sent_mail',
         $wpdb->prefix . 'postsmtp_log',
+        $wpdb->prefix . 'post_smtp_logs',
     ];
 
     foreach ( $tables as $table ) {
