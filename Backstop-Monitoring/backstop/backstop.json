@@ -1,0 +1,73 @@
+{
+  "id": "wm-crash-test",
+  "viewports": [
+    {
+      "label": "desktop",
+      "width": 1920,
+      "height": 1080
+    },
+    {
+      "label": "tablet",
+      "width": 1024,
+      "height": 768
+    },
+    {
+      "label": "mobile",
+      "width": 375,
+      "height": 812
+    }
+  ],
+  "onBeforeScript": "puppet/onBefore.js",
+  "onReadyScript": "puppet/onReady.js",
+  "scenarios": [
+    {
+      "label": "Homepage",
+      "url": "https://crash-test.s1.webmarketersdev.ca/",
+      "referenceUrl": "",
+      "selectors": ["document"],
+      "hideSelectors": [
+        ".cookie",
+        ".cookie-banner",
+        ".popup",
+        ".modal",
+        ".newsletter",
+        "#popup",
+        ".elementor-popup-modal"
+      ],
+      "removeSelectors": [],
+      "readyEvent": null,
+      "delay": 1000,
+      "misMatchThreshold": 2,
+      "requireSameDimensions": false
+    },
+    {
+      "label": "Homepage Above The Fold",
+      "url": "https://crash-test.s1.webmarketersdev.ca/",
+      "selectors": ["body"],
+      "delay": 5000,
+      "misMatchThreshold": 0.1
+    }
+  ],
+  "paths": {
+    "bitmaps_reference": "backstop_data/bitmaps_reference",
+    "bitmaps_test": "backstop_data/bitmaps_test",
+    "engine_scripts": "backstop_data/engine_scripts",
+    "html_report": "backstop_data/html_report",
+    "ci_report": "backstop_data/ci_report"
+  },
+  "report": ["browser", "CI"],
+  "engine": "puppeteer",
+"engineOptions": {
+  "executablePath": "/usr/bin/chromium-browser",
+  "args": [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--disable-gpu"
+  ]
+},
+  "asyncCaptureLimit": 1,
+  "asyncCompareLimit": 1,
+  "debug": false,
+  "debugWindow": false
+}

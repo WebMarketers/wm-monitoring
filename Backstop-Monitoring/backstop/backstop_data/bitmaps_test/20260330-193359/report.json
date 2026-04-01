@@ -1,0 +1,165 @@
+{
+  "testSuite": "BackstopJS",
+  "tests": [
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/wm-crash-test_Homepage_0_document_0_desktop.png",
+        "test": "../bitmaps_test/20260330-193359/wm-crash-test_Homepage_0_document_0_desktop.png",
+        "selector": "document",
+        "fileName": "wm-crash-test_Homepage_0_document_0_desktop.png",
+        "label": "Homepage",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 2,
+        "url": "https://crash-test.s1.webmarketersdev.ca/",
+        "referenceUrl": "",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": false,
+          "dimensionDifference": {
+            "width": 0,
+            "height": -5967
+          },
+          "rawMisMatchPercentage": 8.838734567901236,
+          "misMatchPercentage": "8.84",
+          "analysisTime": 746
+        },
+        "diffImage": "../bitmaps_test/20260330-193359/failed_diff_wm-crash-test_Homepage_0_document_0_desktop.png"
+      },
+      "status": "fail"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/wm-crash-test_Homepage_0_document_1_tablet.png",
+        "test": "../bitmaps_test/20260330-193359/wm-crash-test_Homepage_0_document_1_tablet.png",
+        "selector": "document",
+        "fileName": "wm-crash-test_Homepage_0_document_1_tablet.png",
+        "label": "Homepage",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 2,
+        "url": "https://crash-test.s1.webmarketersdev.ca/",
+        "referenceUrl": "",
+        "expect": 0,
+        "viewportLabel": "tablet",
+        "diff": {
+          "isSameDimensions": false,
+          "dimensionDifference": {
+            "width": -19,
+            "height": -6177
+          },
+          "rawMisMatchPercentage": 9.984034259042595,
+          "misMatchPercentage": "9.98",
+          "analysisTime": 404
+        },
+        "diffImage": "../bitmaps_test/20260330-193359/failed_diff_wm-crash-test_Homepage_0_document_1_tablet.png"
+      },
+      "status": "fail"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/wm-crash-test_Homepage_0_document_2_mobile.png",
+        "test": "../bitmaps_test/20260330-193359/wm-crash-test_Homepage_0_document_2_mobile.png",
+        "selector": "document",
+        "fileName": "wm-crash-test_Homepage_0_document_2_mobile.png",
+        "label": "Homepage",
+        "requireSameDimensions": false,
+        "misMatchThreshold": 2,
+        "url": "https://crash-test.s1.webmarketersdev.ca/",
+        "referenceUrl": "",
+        "expect": 0,
+        "viewportLabel": "mobile",
+        "diff": {
+          "isSameDimensions": false,
+          "dimensionDifference": {
+            "width": -159,
+            "height": -9572
+          },
+          "rawMisMatchPercentage": 3.528494572462388,
+          "misMatchPercentage": "3.53",
+          "analysisTime": 294
+        },
+        "diffImage": "../bitmaps_test/20260330-193359/failed_diff_wm-crash-test_Homepage_0_document_2_mobile.png"
+      },
+      "status": "fail"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/wm-crash-test_Homepage_Above_The_Fold_0_body_0_desktop.png",
+        "test": "../bitmaps_test/20260330-193359/wm-crash-test_Homepage_Above_The_Fold_0_body_0_desktop.png",
+        "selector": "body",
+        "fileName": "wm-crash-test_Homepage_Above_The_Fold_0_body_0_desktop.png",
+        "label": "Homepage Above The Fold",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://crash-test.s1.webmarketersdev.ca/",
+        "expect": 0,
+        "viewportLabel": "desktop",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "rawMisMatchPercentage": 57.67274305555555,
+          "misMatchPercentage": "57.67",
+          "analysisTime": 262
+        },
+        "diffImage": "../bitmaps_test/20260330-193359/failed_diff_wm-crash-test_Homepage_Above_The_Fold_0_body_0_desktop.png"
+      },
+      "status": "fail"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/wm-crash-test_Homepage_Above_The_Fold_0_body_1_tablet.png",
+        "test": "../bitmaps_test/20260330-193359/wm-crash-test_Homepage_Above_The_Fold_0_body_1_tablet.png",
+        "selector": "body",
+        "fileName": "wm-crash-test_Homepage_Above_The_Fold_0_body_1_tablet.png",
+        "label": "Homepage Above The Fold",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://crash-test.s1.webmarketersdev.ca/",
+        "expect": 0,
+        "viewportLabel": "tablet",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "rawMisMatchPercentage": 93.72329711914062,
+          "misMatchPercentage": "93.72",
+          "analysisTime": 122
+        },
+        "diffImage": "../bitmaps_test/20260330-193359/failed_diff_wm-crash-test_Homepage_Above_The_Fold_0_body_1_tablet.png"
+      },
+      "status": "fail"
+    },
+    {
+      "pair": {
+        "reference": "../bitmaps_reference/wm-crash-test_Homepage_Above_The_Fold_0_body_2_mobile.png",
+        "test": "../bitmaps_test/20260330-193359/wm-crash-test_Homepage_Above_The_Fold_0_body_2_mobile.png",
+        "selector": "body",
+        "fileName": "wm-crash-test_Homepage_Above_The_Fold_0_body_2_mobile.png",
+        "label": "Homepage Above The Fold",
+        "requireSameDimensions": true,
+        "misMatchThreshold": 0.1,
+        "url": "https://crash-test.s1.webmarketersdev.ca/",
+        "expect": 0,
+        "viewportLabel": "mobile",
+        "diff": {
+          "isSameDimensions": true,
+          "dimensionDifference": {
+            "width": 0,
+            "height": 0
+          },
+          "rawMisMatchPercentage": 91.66338259441707,
+          "misMatchPercentage": "91.66",
+          "analysisTime": 72
+        },
+        "diffImage": "../bitmaps_test/20260330-193359/failed_diff_wm-crash-test_Homepage_Above_The_Fold_0_body_2_mobile.png"
+      },
+      "status": "fail"
+    }
+  ],
+  "id": "wm-crash-test"
+}
