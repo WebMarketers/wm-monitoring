@@ -2,19 +2,19 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --primary:       #0D2D55;
-  --primary-light: #163f74;
-  --accent:        #931834;
-  --accent-light:  #b01e3d;
-  --bg:            #060d1f;
-  --surface-1:     #0d1a30;
-  --surface-2:     #112040;
-  --surface-3:     #162848;
-  --border:        rgba(255,255,255,0.07);
-  --border-bright: rgba(255,255,255,0.14);
-  --text-1:        #f0f4f8;
-  --text-2:        #94a3b8;
-  --text-3:        #5a7293;
+  --primary:       #0EA5E9;
+  --primary-light: #38BDF8;
+  --accent:        #E11D48;
+  --accent-light:  #F43F5E;
+  --bg:            #0f172a;
+  --surface-1:     #1e293b;
+  --surface-2:     #334155;
+  --surface-3:     #475569;
+  --border:        rgba(255,255,255,0.12);
+  --border-bright: rgba(255,255,255,0.25);
+  --text-1:        #f8fafc;
+  --text-2:        #cbd5e1;
+  --text-3:        #94a3b8;
   --success:       #10b981;
   --success-bg:    rgba(16,185,129,0.12);
   --error:         #ef4444;
@@ -25,8 +25,10 @@
   --running-bg:    rgba(59,130,246,0.12);
   --radius:        12px;
   --radius-sm:     8px;
-  --shadow:        0 4px 24px rgba(0,0,0,0.4);
-  --shadow-lg:     0 8px 48px rgba(0,0,0,0.6);
+  --shadow-sm:     0 1px 3px rgba(0,0,0,0.3);
+  --shadow:        0 4px 12px rgba(0,0,0,0.4);
+  --shadow-hover:  0 12px 32px rgba(0,0,0,0.5);
+  --shadow-lg:     0 16px 48px rgba(0,0,0,0.6);
   --sidebar-w:     240px;
   --transition:    all 0.2s ease;
 }
@@ -163,8 +165,8 @@ body {
 /* ── Sites Grid ───────────────────────────────────────────────────────────── */
 .sites-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
 }
 
 /* ── Site Card ────────────────────────────────────────────────────────────── */
@@ -172,14 +174,15 @@ body {
   background: var(--surface-1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 22px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   transition: var(--transition);
   cursor: pointer;
   position: relative;
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .site-card::before {
@@ -197,8 +200,8 @@ body {
 
 .site-card:hover {
   border-color: var(--border-bright);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
 }
 
 .site-card-header {
