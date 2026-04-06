@@ -28,6 +28,9 @@ router.put('/', async (req, res) => {
       'smtp_from', 'smtp_from_name', 'smtp_secure',
       'email_provider',
       'aws_access_key_id', 'aws_secret_access_key', 'aws_region', 'aws_ses_from',
+      // Form monitoring
+      'form_monitoring_enabled', 'form_check_interval_hours',
+      'form_breakpoint_days_default', 'form_report_interval_hours',
     ];
     const updates = {};
 
