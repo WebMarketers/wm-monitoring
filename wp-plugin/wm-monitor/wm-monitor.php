@@ -3,7 +3,7 @@
  * Plugin Name:       Webmarketers Monitoring
  * Plugin URI:        https://webmarketers.ca
  * Description:       Passive form monitoring & active form testing for WM Plus Monitoring dashboard. Works with Gravity Forms and Contact Form 7.
- * Version:           2.0.0
+ * Version:           2.0.1
  * Author:            WebMarketers
  * Author URI:        https://webmarketers.ca
  * Requires at least: 5.8
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'WM_MONITOR_VERSION', '2.0.0' );
+define( 'WM_MONITOR_VERSION', '2.0.1' );
 define( 'WM_MONITOR_FILE',    __FILE__ );
 
 // ── REST API Routes ───────────────────────────────────────────────────────────
@@ -770,4 +770,68 @@ function wm_monitor_settings_page() {
         </div>
     </div>
     <?php
+}
+
+// ── Auto-Updater API ────────────────────────────────────────────────────────
+add_filter( 'pre_set_site_transient_update_plugins', 'wm_monitor_check_for_updates' );
+
+function wm_monitor_check_for_updates( $transient ) {
+    if ( empty( $transient->checked ) ) {
+        return $transient;
+    }
+
+    $response = wp_remote_get( 'https://backstop.webmarketersdev.ca/api/plugin/update', [ 'timeout' => 5 ] );
+    if ( is_wp_error( $response ) ) {
+        return $transient;
+    }
+
+    $data = json_decode( wp_remote_retrieve_body( $response ), true );
+    if ( ! $data || empty( $data['version'] ) || empty( $data['download_url'] ) ) {
+        return $transient;
+    }
+
+    if ( version_compare( WM_MONITOR_VERSION, $data['version'], '<' ) ) {
+        $plugin_slug = plugin_basename( WM_MONITOR_FILE );
+        
+        $transient->response[ $plugin_slug ] = (object) [
+            'slug'        => 'wm-monitor',
+            'plugin'      => $plugin_slug,
+            'new_version' => $data['version'],
+            'package'     => $data['download_url'],
+            'url'         => 'https://webmarketers.ca',
+            'icons'       => [
+                'default' => 'https://backstop.webmarketersdev.ca/assets/img/icon.png',
+            ]
+        ];
+    }
+
+    return $transient;
+}
+
+// Also hook plugins_api to provide plugin info if requested (optional but good practice)
+add_filter( 'plugins_api', 'wm_monitor_plugin_api_call', 10, 3 );
+function wm_monitor_plugin_api_call( $res, $action, $args ) {
+    if ( $action !== 'plugin_information' ) return $res;
+    if ( $args->slug !== 'wm-monitor' ) return $res;
+
+    $response = wp_remote_get( 'https://backstop.webmarketersdev.ca/api/plugin/update', [ 'timeout' => 5 ] );
+    if ( is_wp_error( $response ) ) return $res;
+
+    $data = json_decode( wp_remote_retrieve_body( $response ), true );
+    if ( ! $data || empty( $data['version'] ) ) return $res;
+
+    return (object) [
+        'name'          => 'Webmarketers Monitoring',
+        'slug'          => 'wm-monitor',
+        'version'       => $data['version'],
+        'author'        => '<a href="https://webmarketers.ca">Webmarketers</a>',
+        'homepage'      => 'https://webmarketers.ca',
+        'requires'      => '5.8',
+        'tested'        => '6.4',
+        'requires_php'  => '7.4',
+        'download_link' => $data['download_url'],
+        'sections'      => [
+            'description' => 'Passive form monitoring & active form testing for WM Plus Monitoring dashboard.',
+        ],
+    ];
 }

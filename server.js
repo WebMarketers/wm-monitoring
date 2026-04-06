@@ -41,6 +41,23 @@ app.use('/api/settings',      settingsRouter);
 app.use('/api/form-webhook',  formWebhookRouter);
 app.use('/api',               testsRouter);
 
+// ── WP Plugin Auto-Updater ─────────────────────────────────────────────────────
+app.get('/api/plugin/update', (req, res) => {
+  try {
+    const pluginPath = path.join(__dirname, 'wp-plugin', 'wm-monitor', 'wm-monitor.php');
+    const content = fs.readFileSync(pluginPath, 'utf8');
+    const vMatch = content.match(/define\s*\(\s*'WM_MONITOR_VERSION',\s*'([^']+)'\s*\);/);
+    const version = vMatch ? vMatch[1] : '1.0.0';
+
+    res.json({
+      version: version,
+      download_url: `${req.protocol}://${req.get('host')}/plugin/wm-monitor.zip`
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not read plugin version' });
+  }
+});
+
 // ── Health check ───────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() });
