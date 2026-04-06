@@ -124,7 +124,18 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(dateStr) {
   if (!dateStr) return 'never';
-  const diff = Date.now() - new Date(dateStr + (dateStr.endsWith('Z') ? '' : 'Z')).getTime();
+  let ts;
+  if (!isNaN(dateStr) && typeof dateStr !== 'string') {
+    ts = dateStr;
+  } else if (!isNaN(dateStr) && !isNaN(Number(dateStr))) {
+    ts = Number(dateStr);
+  } else {
+    const s = String(dateStr);
+    ts = new Date(s.endsWith('Z') ? s : s + 'Z').getTime();
+  }
+  if (isNaN(ts)) return 'unknown';
+
+  const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
   if (m < 1) return 'just now';
   if (m < 60) return `${m}m ago`;
@@ -380,6 +391,21 @@ function renderClientCard(client) {
   `;
 }
 
+window.__manualRunLimits = window.__manualRunLimits || {};
+async function deleteTestRun(runId, clientId) {
+  if (!confirm('Delete this test run?')) return;
+  try {
+    const res = await fetch(`/api/runs/${runId}`, { method: 'DELETE' });
+    if ((await res.json()).success) {
+      toast('Run deleted', 'success');
+      // reload client
+      renderClientPage(clientId);
+    } else throw new Error('Delete failed');
+  } catch (e) {
+    toast(e.message, 'error');
+  }
+}
+
 // ── Client Detail Page ────────────────────────────────────────────────────────
 async function renderClientPage(id) {
   const main = document.getElementById('main-content');
@@ -399,8 +425,8 @@ function renderClientDetail(client) {
   const main = document.getElementById('main-content');
   const domain = (() => { try { return new URL(client.url).hostname; } catch { return client.url; } })();
 
-  const visualRuns = client.runs.filter(r => r.type === 'visual').slice(0, 8);
-  const formRuns   = client.runs.filter(r => r.type === 'form').slice(0, 8);
+  const visualRuns = client.runs.filter(r => r.type === 'visual').slice(0, 100);
+  const formRuns   = client.runs.filter(r => r.type === 'form').slice(0, 100);
   const lastFormRun = formRuns[0];
   const lastFormDetails = lastFormRun?.details;
 
@@ -474,23 +500,30 @@ function renderClientDetail(client) {
             </div>
           </div>` : ''}
 
-          ${visualRuns.length > 0 ? `
-          <div class="run-history">
-            <div class="run-history-title">Recent Runs</div>
-            ${visualRuns.map(run => `
-              <div class="run-item" onclick="openLog(${run.id})">
-                <div class="run-item-left">
-                  ${statusBadge(run.status)}
-                  <span>${formatDate(run.started_at)}</span>
+          ${visualRuns.length > 0 ? (() => {
+            const limit = window.__visualRunLimits ? window.__visualRunLimits[client.id] || 5 : 5;
+            const vis = visualRuns.slice(0, limit);
+            const hasMore = visualRuns.length > limit;
+            return `
+            <div class="run-history">
+              <div class="run-history-title">Recent Runs</div>
+              ${vis.map(run => `
+                <div class="run-item" onclick="openLog(${run.id})">
+                  <div class="run-item-left">
+                    ${statusBadge(run.status)}
+                    <span>${formatDate(run.started_at)}</span>
+                  </div>
+                  <div class="run-item-right">
+                    ${run.details?.mismatch ? `<span class="mismatch-peak" title="Highest mismatch">${Math.max(...run.details.mismatch.map(m=>m.mismatch)).toFixed(2)}%</span>` : ''}
+                    ${run.details?.duration_ms ? `<span class="status-time">${fmtDuration(run.details.duration_ms)}</span>` : ''}
+                    ${run.log ? `<span class="run-log-link">Log</span>` : ''}
+                    <button onclick="event.stopPropagation(); deleteTestRun(${run.id}, ${client.id})" style="background:none;border:none;color:var(--danger);cursor:pointer;opacity:0.6;margin-left:6px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6" title="Delete run">×</button>
+                  </div>
                 </div>
-                <div class="run-item-right">
-                  ${run.details?.mismatch ? `<span class="mismatch-peak" title="Highest mismatch">${Math.max(...run.details.mismatch.map(m=>m.mismatch)).toFixed(2)}%</span>` : ''}
-                  ${run.details?.duration_ms ? `<span class="status-time">${fmtDuration(run.details.duration_ms)}</span>` : ''}
-                  ${run.log ? `<span class="run-log-link">Log</span>` : ''}
-                </div>
-              </div>
-            `).join('')}
-          </div>` : ''}
+              `).join('')}
+              ${hasMore ? `<button onclick="window.__visualRunLimits = window.__visualRunLimits || {}; window.__visualRunLimits[${client.id}] = ${limit + 10}; document.getElementById('client-${client.id}').click();" class="btn btn-secondary" style="margin-top:8px;width:100%;font-size:11px;height:32px">Load More</button>` : ''}
+            </div>`
+          })() : ''}
         </div>
       </div>
 
@@ -529,21 +562,28 @@ function renderClientDetail(client) {
 
           <div id="form-submit-log-${client.id}" style="margin-top:16px"></div>
 
-          ${formRuns.length > 0 ? `
-          <div class="run-history" style="margin-top:8px">
-            <div class="run-history-title">Manual Test Runs</div>
-            ${formRuns.map(run => `
-              <div class="run-item" onclick="openLog(${run.id})">
-                <div class="run-item-left">
-                  ${statusBadge(run.status)}
-                  <span>${formatDate(run.started_at)}</span>
+          ${formRuns.length > 0 ? (() => {
+            const limit = window.__manualRunLimits[client.id] || 5;
+            const vis = formRuns.slice(0, limit);
+            const hasMore = formRuns.length > limit;
+            return `
+            <div class="run-history" style="margin-top:8px">
+              <div class="run-history-title">Manual Test Runs</div>
+              ${vis.map(run => `
+                <div class="run-item" onclick="openLog(${run.id})">
+                  <div class="run-item-left">
+                    ${statusBadge(run.status)}
+                    <span>${formatDate(run.started_at)}</span>
+                  </div>
+                  <div class="run-item-right">
+                    ${run.log ? `<span class="run-log-link">Log</span>` : ''}
+                    <button onclick="event.stopPropagation(); deleteTestRun(${run.id}, ${client.id})" style="background:none;border:none;color:var(--danger);cursor:pointer;opacity:0.6;margin-left:6px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6" title="Delete run">×</button>
+                  </div>
                 </div>
-                <div class="run-item-right">
-                  ${run.log ? `<span class="run-log-link">Log</span>` : ''}
-                </div>
-              </div>
-            `).join('')}
-          </div>` : ''}
+              `).join('')}
+              ${hasMore ? `<button onclick="window.__manualRunLimits[${client.id}] = ${limit + 10}; document.getElementById('client-${client.id}').click();" class="btn btn-secondary" style="margin-top:8px;width:100%;font-size:11px;height:32px">Load More</button>` : ''}
+            </div>`;
+          })() : ''}
 
           <div style="margin-top:12px;font-size:11px;color:var(--text-3)">
             Plugin: <code>${client.url.replace(/\/$/, '')}/wp-json/wm-monitor/v1</code>
@@ -735,12 +775,27 @@ function renderFormMonitoringBody(client) {
 }
 
 // Load passive form submission log for a client
+window.__logLimits = window.__logLimits || {};
+
+async function deleteFormLog(logId, clientId) {
+  if (!confirm("Delete this log entry?")) return;
+  try {
+    const res = await fetch(`/api/form-webhook/logs/${logId}`, { method: 'DELETE' });
+    if ((await res.json()).success) {
+      toast('Log deleted', 'success');
+      loadFormSubmissionLog(clientId);
+    } else throw new Error("Delete failed");
+  } catch (err) { toast(err.message, 'error'); }
+}
+
 async function loadFormSubmissionLog(clientId) {
   const container = document.getElementById(`form-submit-log-${clientId}`);
   if (!container) return;
 
+  const limit = window.__logLimits[clientId] || 5;
+
   try {
-    const res  = await fetch(`/api/form-webhook/logs/${clientId}?limit=20`);
+    const res  = await fetch(`/api/form-webhook/logs/${clientId}?limit=100`);
     const data = await res.json();
     const logs = data.data || [];
 
@@ -752,13 +807,16 @@ async function loadFormSubmissionLog(clientId) {
       return;
     }
 
+    const visibleLogs = logs.slice(0, limit);
+    const hasMore = logs.length > limit;
+
     container.innerHTML = `
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-3);margin-bottom:8px">
           📬 Recent Submission Log
         </div>
         <div style="display:flex;flex-direction:column;gap:5px">
-          ${logs.map(l => {
+          ${visibleLogs.map(l => {
             const isTest  = l.is_test;
             const icon    = isTest ? '🟡' : '✅';
             const label   = isTest
@@ -772,9 +830,11 @@ async function loadFormSubmissionLog(clientId) {
                 <span style="color:var(--text-3);background:var(--surface-3);padding:1px 6px;border-radius:4px;font-size:11px">${typeTag}</span>
                 ${l.form_name ? `<span style="color:var(--text-3)">${l.form_name}</span>` : ''}
                 <span style="color:var(--text-3);font-size:11px;white-space:nowrap">${timeAgo(l.submitted_at)}</span>
+                <button onclick="deleteFormLog(${l.id}, ${clientId})" style="background:none;border:none;color:var(--danger);cursor:pointer;opacity:0.6;padding:0 4px" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6" title="Delete log">×</button>
               </div>`;
           }).join('')}
         </div>
+        ${hasMore ? `<button onclick="window.__logLimits[${clientId}] = ${limit + 10}; loadFormSubmissionLog(${clientId})" class="btn btn-secondary" style="margin-top:8px;width:100%;font-size:11px;height:32px">Load More</button>` : ''}
       </div>`;
   } catch (err) {
     if (container) container.innerHTML = '';

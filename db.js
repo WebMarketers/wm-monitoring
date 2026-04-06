@@ -405,6 +405,10 @@ async function getRecentFormActivity(limit = 50) {
     .limit(limit);
 }
 
+async function deleteFormSubmissionLog(id) {
+  return knex('form_submission_log').where({ id }).del();
+}
+
 // ── Activity Feed ──────────────────────────────────────────────────────────────────
 async function getRecentActivity(limit = 20) {
   return knex('test_runs as r')
@@ -418,15 +422,19 @@ async function getRecentActivity(limit = 20) {
     .limit(limit);
 }
 
+async function deleteTestRun(id) {
+  return knex('test_runs').where({ id }).del();
+}
+
 module.exports = {
   ready,
   getAllClients, getClientById, getClientBySlug,
   insertClient, updateClient, updateLeadStatus, updateFormStatus, deleteClient,
   insertRun, getRunById, updateRun, updateRunLog,
-  getRunsForClient, getLastRun, getRecentActivity,
+  getRunsForClient, getLastRun, getRecentActivity, deleteTestRun,
   getSettings, setSetting, setSettings,
   insertFormSubmissionLog, getFormSubmissionLogs,
-  getFormSubmissionLogsByDate, getRecentFormActivity,
+  getFormSubmissionLogsByDate, getRecentFormActivity, deleteFormSubmissionLog,
   getMaintenanceLogs, insertMaintenanceLog, deleteMaintenanceLog,
   getChecklist, upsertChecklist,
   getSiteInfoCache, upsertSiteInfoCache,

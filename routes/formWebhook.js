@@ -120,4 +120,18 @@ router.post('/trigger-test/:clientId', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/form-webhook/logs/:id
+ * Delete a specific form submission log entry.
+ */
+router.delete('/logs/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await db.deleteFormSubmissionLog(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;

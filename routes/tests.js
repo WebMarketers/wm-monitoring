@@ -113,4 +113,15 @@ router.get('/activity', async (req, res) => {
   }
 });
 
+// DELETE /api/runs/:runId
+router.delete('/runs/:runId', async (req, res) => {
+  try {
+    const id = Number(req.params.runId);
+    await db.deleteTestRun(id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
