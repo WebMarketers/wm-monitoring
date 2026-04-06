@@ -924,16 +924,8 @@ async function renderSettings() {
             </div>
 
             <div class="form-group">
-              <label class="form-label" for="s-threshold">Global Mismatch Threshold</label>
-              <select class="form-input" id="s-threshold" onchange="saveMismatchThreshold(this.value)">
-                <option value="0.1"  ${settings.global_mismatch_threshold==0.1  ?'selected':''}>0.1% &mdash; Pixel perfect (very strict)</option>
-                <option value="0.5"  ${settings.global_mismatch_threshold==0.5  ?'selected':''}>0.5% &mdash; Very tight</option>
-                <option value="1"    ${settings.global_mismatch_threshold==1    ?'selected':''}>1% &mdash; Tight</option>
-                <option value="2"    ${settings.global_mismatch_threshold==2||!settings.global_mismatch_threshold?'selected':''}>2% &mdash; Standard (recommended)</option>
-                <option value="3"    ${settings.global_mismatch_threshold==3    ?'selected':''}>3% &mdash; Relaxed</option>
-                <option value="5"    ${settings.global_mismatch_threshold==5    ?'selected':''}>5% &mdash; Loose</option>
-                <option value="10"   ${settings.global_mismatch_threshold==10   ?'selected':''}>10% &mdash; Very loose</option>
-              </select>
+              <label class="form-label" for="s-threshold">Global Mismatch Threshold (%)</label>
+              <input type="number" step="0.1" min="0" max="100" class="form-input" id="s-threshold" value="${settings.global_mismatch_threshold || 2}" onchange="saveMismatchThreshold(this.value)">
               <span class="form-hint">Maximum allowed pixel change before a test is marked as failed. Above-the-fold is always 10&times; stricter. Applies globally unless a site has its own override.</span>
             </div>
 
