@@ -340,6 +340,7 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
         'email_sent'     => $email_sent,
         'email_log'      => $email_log,
         'errors'         => $errors,
+        'active_notifs'  => $active_notifs ?? 0,
     ];
 }
 
