@@ -282,9 +282,8 @@ async function renderDashboard() {
         ${total === 0 ? renderEmptyState() : filterClients().map(renderClientCard).join('')}
       </div>
 
-      <!-- Activity Feed -->
       <div id="activity-feed-section" style="margin-top:32px">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-3);margin-bottom:12px">Recent Activity</div>
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-2);margin-bottom:12px">Recent Activity</div>
         <div id="activity-feed"><div class="loading-overlay" style="padding:20px"><div class="spinner"></div></div></div>
       </div>
     `;
