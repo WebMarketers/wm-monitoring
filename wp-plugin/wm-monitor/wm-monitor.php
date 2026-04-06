@@ -297,8 +297,11 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
     if ( ! $submitted ) {
         if ( is_wp_error( $result ) ) {
             $errors = $result->get_error_message();
-        } elseif ( isset( $result['validation_messages'] ) ) {
+        } elseif ( isset( $result['validation_messages'] ) && ! empty( $result['validation_messages'] ) ) {
             $errors = $result['validation_messages'];
+        } else {
+            // Unhandled failure condition, output raw result for debugging
+            $errors = $result; 
         }
     }
 
