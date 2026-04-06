@@ -301,6 +301,19 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
 
     $entry_id = $submitted && isset( $result['entry_id'] ) ? $result['entry_id'] : null;
 
+    global $wm_monitor_wp_mail_fired;
+    // If GF didn't fire wp_mail synchronously (due to a third-party async processor or missed hooks),
+    // physically force GF to process and send the notifications immediately before we delete the test entry.
+    if ( $submitted && empty( $wm_monitor_wp_mail_fired ) && $entry_id && class_exists( 'GFCommon' ) ) {
+        $entry = GFAPI::get_entry( $entry_id );
+        if ( ! is_wp_error( $entry ) ) {
+            // Force the core GF sending method for ALL notifications, ignoring the 'event' setting
+            add_filter( 'gform_notification', 'wm_monitor_test_gf_force_notification', 999, 3 );
+            GFCommon::send_notifications( $form['notifications'], $form, $entry, true, 'form_submission' );
+            remove_filter( 'gform_notification', 'wm_monitor_test_gf_force_notification', 999 );
+        }
+    }
+
     // Delete test entry so it doesn't clutter the client's GF entries
     if ( $entry_id ) {
         GFAPI::delete_entry( $entry_id );
@@ -363,8 +376,9 @@ function wm_monitor_test_gf_force_notification( $notification, $form, $entry ) {
     // Also, conditional logic might fail because of our generic test data.
     // To ensure wp_mail() is tested, we force the notification to be valid and send to a valid dummy address.
     unset( $notification['conditionalLogic'] );
-    $notification['toType'] = 'email';
-    $notification['to']     = 'wm-monitor-test@devnull.teamwebmarketers.ca';
+    $notification['isActive'] = true;
+    $notification['toType']   = 'email';
+    $notification['to']       = 'wm-monitor-test@devnull.teamwebmarketers.ca';
     return $notification;
 }
 
