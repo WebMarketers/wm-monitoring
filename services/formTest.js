@@ -82,8 +82,9 @@ async function runFormTest(runId, client) {
     const result = formRes.data;
 
     log += `[${new Date().toISOString()}] Form submitted: ${result.form_submitted ? '✅ Yes' : '❌ No'}\n`;
+    log += `[${new Date().toISOString()}]    RAW RESULT DATA: ${JSON.stringify(result)}\n`;
     if (result.entry_id) log += `[${new Date().toISOString()}]    Entry ID: ${result.entry_id}\n`;
-    if (result.errors) log += `[${new Date().toISOString()}]    Errors: ${JSON.stringify(result.errors)}\n`;
+    if (result.errors) log += `[${new Date().toISOString()}]    Errors: ${typeof result.errors === 'string' ? result.errors : JSON.stringify(result.errors)}\n`;
     log += `\n`;
 
     // Step 3: Email delivery check
