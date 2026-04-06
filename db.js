@@ -56,6 +56,50 @@ async function bootstrap() {
       t.integer('form_breakpoint_days').defaultTo(null); // site-specific override (null = use global)
       t.float('form_days_since_last').defaultTo(null);   // cached for dashboard
     });
+    // Migrate: add tags and hosting_server if not present
+    const hasTags = await knex.schema.hasColumn('clients', 'tags');
+    if (!hasTags) await knex.schema.table('clients', t => {
+      t.text('tags');           // JSON array: '["hosting","marketing"]'
+      t.string('hosting_server'); // e.g. 'siteground_1'
+    });
+  }
+
+  // Maintenance logs table
+  const hasMaintenanceLogs = await knex.schema.hasTable('maintenance_logs');
+  if (!hasMaintenanceLogs) {
+    await knex.schema.createTable('maintenance_logs', t => {
+      t.increments('id').primary();
+      t.integer('client_id').notNullable().references('id').inTable('clients').onDelete('CASCADE');
+      t.text('note').notNullable();
+      t.timestamp('created_at').defaultTo(knex.fn.now());
+    });
+  }
+
+  // Monthly checklists table
+  const hasChecklists = await knex.schema.hasTable('monthly_checklists');
+  if (!hasChecklists) {
+    await knex.schema.createTable('monthly_checklists', t => {
+      t.increments('id').primary();
+      t.integer('client_id').notNullable().references('id').inTable('clients').onDelete('CASCADE');
+      t.string('month').notNullable();  // '2026-04'
+      t.boolean('plugin_updates_applied').defaultTo(false);
+      t.boolean('activity_log_reviewed').defaultTo(false);
+      t.boolean('debug_log_clear').defaultTo(false);
+      t.boolean('frontend_verified').defaultTo(false);
+      t.boolean('contact_form_tested').defaultTo(false);
+      t.text('notes');
+      t.timestamp('saved_at').defaultTo(knex.fn.now());
+    });
+  }
+
+  // Site info cache table
+  const hasSiteInfoCache = await knex.schema.hasTable('site_info_cache');
+  if (!hasSiteInfoCache) {
+    await knex.schema.createTable('site_info_cache', t => {
+      t.integer('client_id').primary().references('id').inTable('clients').onDelete('CASCADE');
+      t.text('data');  // JSON
+      t.timestamp('updated_at').defaultTo(knex.fn.now());
+    });
   }
 
   const hasRuns = await knex.schema.hasTable('test_runs');
@@ -222,6 +266,54 @@ async function deleteClient(id) {
   return knex('clients').where({ id }).delete();
 }
 
+// ── Maintenance Logs ──────────────────────────────────────────────────────────
+async function getMaintenanceLogs(clientId) {
+  return knex('maintenance_logs').where({ client_id: clientId }).orderBy('id', 'desc').limit(50);
+}
+
+async function insertMaintenanceLog(clientId, note) {
+  const [id] = await knex('maintenance_logs').insert({ client_id: clientId, note, created_at: new Date().toISOString() });
+  return knex('maintenance_logs').where({ id }).first();
+}
+
+async function deleteMaintenanceLog(id) {
+  return knex('maintenance_logs').where({ id }).delete();
+}
+
+// ── Monthly Checklists ────────────────────────────────────────────────────────
+async function getChecklist(clientId, month) {
+  return knex('monthly_checklists').where({ client_id: clientId, month }).first() || null;
+}
+
+async function upsertChecklist(clientId, month, data) {
+  const existing = await knex('monthly_checklists').where({ client_id: clientId, month }).first();
+  if (existing) {
+    await knex('monthly_checklists').where({ id: existing.id }).update({ ...data, saved_at: new Date().toISOString() });
+    return knex('monthly_checklists').where({ id: existing.id }).first();
+  }
+  const [id] = await knex('monthly_checklists').insert({ client_id: clientId, month, ...data, saved_at: new Date().toISOString() });
+  return knex('monthly_checklists').where({ id }).first();
+}
+
+// ── Site Info Cache ───────────────────────────────────────────────────────────
+async function getSiteInfoCache(clientId) {
+  const row = await knex('site_info_cache').where({ client_id: clientId }).first();
+  if (!row) return null;
+  const parsed = JSON.parse(row.data);
+  return { ...parsed, cached_at: row.updated_at };
+}
+
+async function upsertSiteInfoCache(clientId, data) {
+  const existing = await knex('site_info_cache').where({ client_id: clientId }).first();
+  const json = JSON.stringify(data);
+  const now  = new Date().toISOString();
+  if (existing) {
+    await knex('site_info_cache').where({ client_id: clientId }).update({ data: json, updated_at: now });
+  } else {
+    await knex('site_info_cache').insert({ client_id: clientId, data: json, updated_at: now });
+  }
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 async function getSettings() {
   const rows = await knex('settings').select('key', 'value');
@@ -335,4 +427,7 @@ module.exports = {
   getSettings, setSetting, setSettings,
   insertFormSubmissionLog, getFormSubmissionLogs,
   getFormSubmissionLogsByDate, getRecentFormActivity,
+  getMaintenanceLogs, insertMaintenanceLog, deleteMaintenanceLog,
+  getChecklist, upsertChecklist,
+  getSiteInfoCache, upsertSiteInfoCache,
 };

@@ -5,8 +5,25 @@ const state = {
   clients: [],
   currentClient: null,
   pollingIntervals: {},
-  filter: { search: '', status: 'all' },
+  filter: { search: '', status: 'all', tag: 'all' },
 };
+
+// ── Tag helpers ───────────────────────────────────────────────────────────────
+const TAG_META = {
+  hosting:   { label: '🖥️ Hosting',   color: '#3b82f6' },
+  marketing: { label: '📢 Marketing', color: '#8b5cf6' },
+  support:   { label: '🛟 Support',   color: '#10b981' },
+};
+
+const SERVER_LABELS = {
+  siteground_1: 'SiteGround 1', siteground_2: 'SiteGround 2', siteground_3: 'SiteGround 3',
+  whc_1: 'WHC 1', whc_2: 'WHC 2',
+};
+
+function parseTags(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
 
 // ── API ───────────────────────────────────────────────────────────────────────
 const api = {
@@ -143,11 +160,15 @@ function favicon(url) {
 
 // ── Filter helper ─────────────────────────────────────────────────────────────
 function filterClients() {
-  const { search, status } = state.filter;
+  const { search, status, tag } = state.filter;
   return state.clients.filter(c => {
     if (search) {
       const q = search.toLowerCase();
       if (!c.name.toLowerCase().includes(q) && !c.url.toLowerCase().includes(q)) return false;
+    }
+    if (tag && tag !== 'all') {
+      const tags = parseTags(c.tags);
+      if (!tags.includes(tag)) return false;
     }
     if (status === 'passing') return c.last_visual_status === 'passed';
     if (status === 'failing') return c.last_visual_status === 'failed' || c.last_visual_status === 'error'
@@ -170,10 +191,14 @@ function setFilter(patch) {
   }
   const countEl = document.getElementById('filter-count');
   if (countEl) countEl.textContent = `${filtered.length} of ${total}`;
-  // Update active pill
-  document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+  // Update active status pill
+  document.querySelectorAll('.filter-pill[data-status]').forEach(b => b.classList.remove('active'));
   const activePill = document.querySelector(`.filter-pill[data-status="${state.filter.status}"]`);
   if (activePill) activePill.classList.add('active');
+  // Update active tag pill
+  document.querySelectorAll('.tag-pill').forEach(b => b.classList.remove('active'));
+  const activeTag = document.querySelector(`.tag-pill[data-tag="${state.filter.tag || 'all'}"]`);
+  if (activeTag) activeTag.classList.add('active');
 }
 
 // ── Duration helper ───────────────────────────────────────────────────────────
@@ -307,6 +332,11 @@ function renderClientCard(client) {
           <div style="min-width:0;">
             <div class="site-name">${client.name}</div>
             <div class="site-url" title="${client.url}">${domain}</div>
+            ${parseTags(client.tags).length ? `
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
+              ${parseTags(client.tags).map(t => `<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:${TAG_META[t]?.color || '#888'}22;color:${TAG_META[t]?.color || '#888'};border:1px solid ${TAG_META[t]?.color || '#888'}44;font-weight:600">${TAG_META[t]?.label || t}</span>`).join('')}
+              ${client.hosting_server ? `<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:rgba(100,200,255,0.1);color:var(--text-2);border:1px solid rgba(100,200,255,0.2)">${SERVER_LABELS[client.hosting_server] || client.hosting_server}</span>` : ''}
+            </div>` : ''}
           </div>
         </div>
         <div class="card-actions" onclick="event.stopPropagation()">
@@ -522,10 +552,77 @@ function renderClientDetail(client) {
         </div>
       </div>
     </div>
+
+    <!-- Site Health: Server & Storage + Security + Plugins -->
+    <div class="detail-card" style="grid-column:1/-1">
+      <div class="detail-card-header">
+        <div class="detail-card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          Site Health
+        </div>
+      </div>
+      <div class="detail-card-body">
+        <div id="site-info-section-${client.id}"><div style="color:var(--text-3);font-size:12px">Loading\u2026</div></div>
+      </div>
+    </div>
+
+    <!-- Maintenance Log -->
+    <div class="detail-card" id="maintenance-log-${client.id}">
+      <div class="detail-card-header">
+        <div class="detail-card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Maintenance Log
+        </div>
+      </div>
+      <div class="detail-card-body">
+        <div id="mlog-list-${client.id}"><div style="font-size:12px;color:var(--text-3)">Loading\u2026</div></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <textarea id="mlog-input-${client.id}" class="form-input form-textarea" placeholder="Add a maintenance note\u2026" style="min-height:60px;flex:1"></textarea>
+          <button class="btn btn-primary btn-sm" style="align-self:flex-end" onclick="addMaintenanceLog(${client.id})">Add Entry</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly Checklist -->
+    <div class="detail-card" id="checklist-${client.id}">
+      <div class="detail-card-header">
+        <div class="detail-card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Monthly Checklist
+        </div>
+        <input type="month" id="checklist-month-${client.id}" class="form-input" style="padding:4px 8px;font-size:12px;width:auto"
+          value="${new Date().toISOString().slice(0,7)}" onchange="loadChecklist(${client.id})" />
+      </div>
+      <div class="detail-card-body">
+        <div id="checklist-items-${client.id}"><div style="font-size:12px;color:var(--text-3)">Loading\u2026</div></div>
+        <div style="margin-top:10px">
+          <label class="form-label" style="font-size:11px">Notes</label>
+          <textarea id="checklist-notes-${client.id}" class="form-input form-textarea" placeholder="Any notes for this month\u2026" style="min-height:60px"></textarea>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+          <span id="checklist-saved-${client.id}" style="font-size:11px;color:var(--text-3)"></span>
+          <button class="btn btn-primary btn-sm" onclick="saveChecklist(${client.id})">Save Checklist</button>
+        </div>
+      </div>
+    </div>
+  </div>
   `;
 
   // Load passive submission log async
   if (client.monitor_key) loadFormSubmissionLog(client.id);
+
+  // Inject tag-pill CSS once
+  if (!document.getElementById('tag-pill-style')) {
+    const s = document.createElement('style');
+    s.id = 'tag-pill-style';
+    s.textContent = `.tag-pill{padding:4px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface-2);font-size:12px;font-weight:500;color:var(--text-2);cursor:pointer;transition:all 0.15s}.tag-pill:hover{background:var(--surface-3)}.tag-pill.active{background:var(--accent);color:#fff;border-color:var(--accent)}`;
+    document.head.appendChild(s);
+  }
+
+  // Load site info, maintenance log, checklist async
+  loadSiteInfo(client.id, client.monitor_key);
+  loadMaintenanceLogs(client.id);
+  loadChecklist(client.id);
 }
 
 function renderFormDetails(details, client) {
@@ -1560,6 +1657,12 @@ function clearPolling() {
 }
 
 // ── Add/Edit Client Modal ─────────────────────────────────────────────────────
+function toggleHostingServer() {
+  const isHosting = document.getElementById('f-tag-hosting')?.checked;
+  const group = document.getElementById('hosting-server-group');
+  if (group) group.style.display = isHosting ? 'block' : 'none';
+}
+
 function openAddModal() {
   document.getElementById('modal-title').textContent = 'Add New Site';
   document.getElementById('modal-submit-btn').textContent = 'Add Site';
@@ -1573,6 +1676,11 @@ function openAddModal() {
   document.getElementById('f-alert-slack').checked = true;
   document.getElementById('f-alert-email').checked = false;
   document.getElementById('f-alert-email-to').value = '';
+  document.getElementById('f-tag-hosting').checked = false;
+  document.getElementById('f-tag-marketing').checked = false;
+  document.getElementById('f-tag-support').checked = false;
+  document.getElementById('f-hosting-server').value = '';
+  document.getElementById('hosting-server-group').style.display = 'none';
   openModal('client-modal');
 }
 
@@ -1593,6 +1701,14 @@ async function openEditModal(clientId) {
   document.getElementById('f-alert-slack').checked = client.alert_slack_enabled !== false;
   document.getElementById('f-alert-email').checked = Boolean(client.alert_email_enabled);
   document.getElementById('f-alert-email-to').value = client.alert_email || '';
+  // Tags
+  const tags = parseTags(client.tags);
+  document.getElementById('f-tag-hosting').checked   = tags.includes('hosting');
+  document.getElementById('f-tag-marketing').checked = tags.includes('marketing');
+  document.getElementById('f-tag-support').checked   = tags.includes('support');
+  document.getElementById('f-hosting-server').value  = client.hosting_server || '';
+  const hostGroup = document.getElementById('hosting-server-group');
+  if (hostGroup) hostGroup.style.display = tags.includes('hosting') ? 'block' : 'none';
   openModal('client-modal');
 }
 
@@ -1600,6 +1716,7 @@ async function submitClientForm(e) {
   e.preventDefault();
   const btn = document.getElementById('modal-submit-btn');
   const clientId = document.getElementById('client-id').value;
+  const selectedTags = ['hosting','marketing','support'].filter(t => document.getElementById(`f-tag-${t}`)?.checked);
   const payload = {
     name: document.getElementById('f-name').value.trim(),
     url: document.getElementById('f-url').value.trim(),
@@ -1615,6 +1732,8 @@ async function submitClientForm(e) {
     alert_slack_enabled:       document.getElementById('f-alert-slack').checked,
     alert_email_enabled:       document.getElementById('f-alert-email').checked,
     alert_email:               document.getElementById('f-alert-email-to').value.trim() || null,
+    tags:                      selectedTags,
+    hosting_server:            document.getElementById('f-hosting-server')?.value || null,
   };
 
   btn.disabled = true;
@@ -1666,7 +1785,214 @@ async function openLog(runId) {
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Site Info Cards ─────────────────────────────────────────────────────────────
+async function loadSiteInfo(clientId, hasKey) {
+  const container = document.getElementById(`site-info-section-${clientId}`);
+  if (!container) return;
+  if (!hasKey) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:8px 0">Install WM Monitor plugin to see server & security info.</div>';
+    return;
+  }
+  container.innerHTML = '<div style="color:var(--text-3);font-size:12px;padding:8px 0"><span class="spinner" style="width:14px;height:14px;border-width:2px"></span> Loading site info…</div>';
+  try {
+    const res  = await fetch(`/api/clients/${clientId}/site-info`);
+    const data = await res.json();
+    const d    = data.data;
+    if (!d) { container.innerHTML = '<div style="font-size:12px;color:var(--text-3)">Site info not available.</div>'; return; }
+
+    const diskColor = d.disk_used_pct > 85 ? 'var(--danger)' : d.disk_used_pct > 70 ? 'var(--warning)' : 'var(--success)';
+    const debugColor = d.debug_log_status === 'has_errors' ? 'var(--danger)' : d.debug_log_status === 'enabled_empty' ? 'var(--warning)' : 'var(--text-2)';
+    const debugLabel = d.debug_log_status === 'has_errors' ? '⚠️ Has Errors' : d.debug_log_status === 'enabled_empty' ? 'Enabled (empty)' : 'Empty';
+
+    container.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <!-- Server & Storage -->
+        <div class="detail-card" style="margin:0">
+          <div class="detail-card-header">
+            <div class="detail-card-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+              Server &amp; Storage
+            </div>
+            <button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px" onclick="refreshSiteInfo(${clientId})">Refresh</button>
+          </div>
+          <div class="detail-card-body" style="gap:8px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              ${siteInfoStat('Disk Used', d.disk_used_pct != null ? `<span style="color:${diskColor};font-weight:700">${d.disk_used_pct}%</span>` : '—')}
+              ${siteInfoStat('Database', d.database_size_mb ? `${d.database_size_mb} MB` : '—')}
+              ${siteInfoStat('Uploads', d.uploads_size_mb ? `${d.uploads_size_mb} MB` : '—')}
+              ${siteInfoStat('PHP Memory', d.php_memory_limit || '—')}
+              ${siteInfoStat('Live Memory', d.live_memory_mb ? `${d.live_memory_mb} MB` : '—')}
+              ${siteInfoStat('Free Disk', d.disk_free_gb != null ? `${d.disk_free_gb} GB` : '—')}
+            </div>
+            ${d.disk_used_pct != null ? `<div style="margin-top:4px"><div style="height:6px;background:var(--surface-3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${Math.min(d.disk_used_pct,100)}%;background:${diskColor};border-radius:4px;transition:width 0.5s"></div></div></div>` : ''}
+          </div>
+        </div>
+        <!-- Security & Environment -->
+        <div class="detail-card" style="margin:0">
+          <div class="detail-card-header">
+            <div class="detail-card-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Security &amp; Environment
+            </div>
+          </div>
+          <div class="detail-card-body" style="gap:8px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              ${siteInfoStat('WordPress', d.wp_version || '—')}
+              ${siteInfoStat('PHP', d.php_version || '—')}
+              ${siteInfoStat('Theme', d.active_theme || '—')}
+              ${siteInfoStat('Admin Accounts', d.admin_accounts ?? '—')}
+              ${siteInfoStat('Debug Log', `<span style="color:${debugColor}">${debugLabel}</span>`)}
+              ${siteInfoStat('Checked', d.checked_at ? formatDate(d.checked_at) : '—')}
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Plugins Needing Update -->
+      ${d.plugins_update_count > 0 ? `
+      <div class="detail-card" style="margin:12px 0 0">
+        <div class="detail-card-header">
+          <div class="detail-card-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Plugins Needing Update <span style="margin-left:6px;background:var(--danger);color:#fff;font-size:10px;padding:1px 7px;border-radius:20px">${d.plugins_update_count}</span>
+          </div>
+        </div>
+        <div class="detail-card-body" style="gap:6px">
+          ${d.plugins_needing_update.map(p => `
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--surface-2);border-radius:6px;font-size:12px">
+              <div>
+                <div style="font-weight:600">${p.name}</div>
+                <div style="color:var(--text-3);margin-top:2px">${p.path}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;margin-left:12px">
+                <div style="color:var(--text-3);text-decoration:line-through">${p.current}</div>
+                <div style="color:var(--warning);font-weight:600">↑ ${p.new_version}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : '<div style="font-size:12px;color:var(--success);padding:8px 0">✅ All plugins are up to date.</div>'}
+    `;
+  } catch (err) {
+    container.innerHTML = `<div style="font-size:12px;color:var(--danger)">Failed to load site info: ${err.message}</div>`;
+  }
+}
+
+function siteInfoStat(label, value) {
+  return `<div style="background:var(--surface-2);border-radius:6px;padding:8px 10px">
+    <div style="font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:3px">${label}</div>
+    <div style="font-size:13px;font-weight:600">${value}</div>
+  </div>`;
+}
+
+async function refreshSiteInfo(clientId) {
+  const container = document.getElementById(`site-info-section-${clientId}`);
+  if (container) container.innerHTML = '<div style="color:var(--text-3);font-size:12px;padding:8px 0">Refreshing…</div>';
+  try {
+    await fetch(`/api/clients/${clientId}/site-info?refresh=1`);
+    const client = state.currentClient;
+    await loadSiteInfo(clientId, client?.monitor_key);
+  } catch (err) {
+    toast('Refresh failed: ' + err.message, 'error');
+  }
+}
+
+// ── Maintenance Log ───────────────────────────────────────────────────────────────
+async function loadMaintenanceLogs(clientId) {
+  const container = document.getElementById(`maintenance-log-${clientId}`);
+  if (!container) return;
+  try {
+    const res  = await fetch(`/api/clients/${clientId}/maintenance-logs`);
+    const data = await res.json();
+    const logs = data.data || [];
+    const listEl = document.getElementById(`mlog-list-${clientId}`);
+    if (listEl) {
+      listEl.innerHTML = logs.length === 0
+        ? '<div style="font-size:12px;color:var(--text-3);padding:8px 0">No entries yet.</div>'
+        : logs.map(l => `
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:10px 12px;background:var(--surface-2);border-radius:8px;margin-bottom:6px;gap:10px">
+            <div style="font-size:13px;flex:1">${l.note.replace(/\n/g,'<br>')}</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+              <span style="font-size:11px;color:var(--text-3);white-space:nowrap">${formatDate(l.created_at)}</span>
+              <button onclick="deleteMaintenanceLog(${clientId},${l.id})" style="background:none;border:none;cursor:pointer;color:var(--text-3);padding:2px;font-size:13px" title="Delete">×</button>
+            </div>
+          </div>`).join('');
+    }
+  } catch (err) {}
+}
+
+async function addMaintenanceLog(clientId) {
+  const textarea = document.getElementById(`mlog-input-${clientId}`);
+  const note = textarea?.value.trim();
+  if (!note) return;
+  try {
+    await api.post(`/clients/${clientId}/maintenance-logs`, { note });
+    textarea.value = '';
+    await loadMaintenanceLogs(clientId);
+    toast('Entry added', 'success', 2000);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteMaintenanceLog(clientId, logId) {
+  try {
+    await api.del(`/clients/${clientId}/maintenance-logs/${logId}`);
+    await loadMaintenanceLogs(clientId);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Monthly Checklist ─────────────────────────────────────────────────────────────
+async function loadChecklist(clientId) {
+  const container = document.getElementById(`checklist-${clientId}`);
+  if (!container) return;
+  const month = document.getElementById(`checklist-month-${clientId}`)?.value
+    || new Date().toISOString().slice(0, 7);
+  try {
+    const res  = await fetch(`/api/clients/${clientId}/checklist?month=${month}`);
+    const data = await res.json();
+    const cl   = data.data || {};
+    const items = [
+      ['plugin_updates_applied', '🔧 Plugin Updates Applied'],
+      ['activity_log_reviewed',  '📝 Activity Log Reviewed'],
+      ['debug_log_clear',        '🐞 Debug Log Clear'],
+      ['frontend_verified',      '🖥️ Front-End Verified'],
+      ['contact_form_tested',    '📧 Contact Form Tested'],
+    ];
+    const checklistEl = document.getElementById(`checklist-items-${clientId}`);
+    if (checklistEl) {
+      checklistEl.innerHTML = items.map(([key, label]) => `
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface-2);border-radius:8px;cursor:pointer;margin-bottom:6px">
+          <input type="checkbox" id="cl-${clientId}-${key}" ${cl[key] ? 'checked' : ''}
+            style="width:15px;height:15px;accent-color:var(--accent);flex-shrink:0">
+          <span style="font-size:13px">${label}</span>
+        </label>`).join('');
+    }
+    const notesEl = document.getElementById(`checklist-notes-${clientId}`);
+    if (notesEl) notesEl.value = cl.notes || '';
+    const savedEl = document.getElementById(`checklist-saved-${clientId}`);
+    if (savedEl) savedEl.textContent = cl.saved_at ? `Last saved: ${formatDate(cl.saved_at)}` : '';
+  } catch (err) {}
+}
+
+async function saveChecklist(clientId) {
+  const month   = document.getElementById(`checklist-month-${clientId}`)?.value || new Date().toISOString().slice(0, 7);
+  const payload = { month };
+  for (const key of ['plugin_updates_applied','activity_log_reviewed','debug_log_clear','frontend_verified','contact_form_tested']) {
+    payload[key] = document.getElementById(`cl-${clientId}-${key}`)?.checked || false;
+  }
+  payload.notes = document.getElementById(`checklist-notes-${clientId}`)?.value || '';
+  try {
+    await api.put(`/clients/${clientId}/checklist`, payload);
+    toast('Checklist saved', 'success', 2000);
+    await loadChecklist(clientId);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────
 window.addEventListener('hashchange', router);
 window.addEventListener('DOMContentLoaded', router);
 
@@ -1676,5 +2002,7 @@ Object.assign(window, {
   submitClientForm, deleteClient, runVisualReference, runVisualTest,
   runFormTest, openLog, runAllSites, saveSettingToggle, saveSchedule, saveSlack,
   saveMismatchThreshold, saveSmtp, saveSes, switchEmailProvider, testSmtp, testSesConnection,
-  setFilter, runCleanup,
+  setFilter, runCleanup, triggerSilentTest,
+  toggleHostingServer, refreshSiteInfo, addMaintenanceLog, deleteMaintenanceLog,
+  saveChecklist, loadChecklist,
 });

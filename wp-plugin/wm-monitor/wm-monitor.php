@@ -44,7 +44,101 @@ function wm_monitor_register_routes() {
             'silent_mode' => [ 'type' => 'boolean', 'default' => false ],
         ],
     ] );
+
+    // Site info (server, security, plugin updates)
+    register_rest_route( 'wm-monitor/v1', '/site-info', [
+        'methods'             => WP_REST_Server::READABLE,
+        'callback'            => 'wm_monitor_site_info',
+        'permission_callback' => 'wm_monitor_verify_key',
+    ] );
 }
+
+// ── Site Info handler ─────────────────────────────────────────────────────────
+function wm_monitor_site_info( WP_REST_Request $request ): WP_REST_Response {
+    global $wpdb;
+
+    // ── Disk ───────────────────────────────────────────────────────────────────
+    $disk_free      = @disk_free_space( ABSPATH );
+    $disk_total     = @disk_total_space( ABSPATH );
+    $disk_used_pct  = ( $disk_total > 0 )
+        ? round( ( ( $disk_total - $disk_free ) / $disk_total ) * 100, 1 )
+        : null;
+
+    // ── Database size ──────────────────────────────────────────────────────────
+    $db_size_mb = (float) $wpdb->get_var(
+        "SELECT ROUND( SUM( data_length + index_length ) / 1024 / 1024, 2 )
+         FROM information_schema.tables
+         WHERE table_schema = DATABASE()"
+    );
+
+    // ── Uploads folder size ────────────────────────────────────────────────────
+    $upload_dir     = wp_upload_dir();
+    $uploads_bytes  = wm_monitor_dir_size( $upload_dir['basedir'] );
+
+    // ── Memory ────────────────────────────────────────────────────────────────
+    $php_memory_limit = ini_get( 'memory_limit' );
+    $live_memory_mb   = round( memory_get_usage( true ) / 1024 / 1024, 1 );
+
+    // ── Environment ───────────────────────────────────────────────────────────
+    global $wp_version;
+    $active_theme = wp_get_theme();
+    $admin_users  = get_users( [ 'role' => 'administrator', 'fields' => 'ID' ] );
+
+    // ── Debug log ─────────────────────────────────────────────────────────────
+    $debug_log_path  = WP_CONTENT_DIR . '/debug.log';
+    $debug_log_bytes = file_exists( $debug_log_path ) ? filesize( $debug_log_path ) : 0;
+    $debug_log_status = $debug_log_bytes > 0 ? 'has_errors'
+        : ( ( defined( 'WP_DEBUG' ) && WP_DEBUG ) ? 'enabled_empty' : 'disabled' );
+
+    // ── Plugins needing update ────────────────────────────────────────────────
+    $plugins_needing_update = [];
+    $update_plugins = get_site_transient( 'update_plugins' );
+    if ( $update_plugins && ! empty( $update_plugins->response ) ) {
+        foreach ( $update_plugins->response as $plugin_path => $plugin_data ) {
+            $info = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_path, false, false );
+            $plugins_needing_update[] = [
+                'path'        => $plugin_path,
+                'name'        => $info['Name'] ?? $plugin_path,
+                'current'     => $info['Version'] ?? '?',
+                'new_version' => $plugin_data->new_version ?? '?',
+            ];
+        }
+    }
+
+    return rest_ensure_response( [
+        'disk_used_pct'          => $disk_used_pct,
+        'disk_free_gb'           => $disk_total > 0 ? round( $disk_free / 1024 / 1024 / 1024, 2 ) : null,
+        'database_size_mb'       => $db_size_mb,
+        'uploads_size_mb'        => round( $uploads_bytes / 1024 / 1024, 2 ),
+        'php_memory_limit'       => $php_memory_limit,
+        'live_memory_mb'         => $live_memory_mb,
+        'wp_version'             => $wp_version,
+        'php_version'            => PHP_VERSION,
+        'active_theme'           => $active_theme->get( 'Name' ) . ' ' . $active_theme->get( 'Version' ),
+        'admin_accounts'         => count( $admin_users ),
+        'debug_log_status'       => $debug_log_status,
+        'debug_log_size_bytes'   => $debug_log_bytes,
+        'plugins_needing_update' => $plugins_needing_update,
+        'plugins_update_count'   => count( $plugins_needing_update ),
+        'checked_at'             => current_time( 'mysql' ),
+    ] );
+}
+
+// ── Recursive directory size ───────────────────────────────────────────────────
+function wm_monitor_dir_size( string $dir ): int {
+    $size = 0;
+    if ( ! is_dir( $dir ) ) return 0;
+    try {
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS )
+        );
+        foreach ( $it as $file ) {
+            $size += $file->getSize();
+        }
+    } catch ( Exception $e ) {}
+    return $size;
+}
+
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 function wm_monitor_verify_key( WP_REST_Request $request ) {

@@ -73,6 +73,8 @@ router.post('/', async (req, res) => {
       form_breakpoint_days: req.body.form_breakpoint_days !== undefined
         ? (req.body.form_breakpoint_days !== '' ? parseInt(req.body.form_breakpoint_days, 10) : null)
         : null,
+      tags:           req.body.tags ? JSON.stringify(req.body.tags) : null,
+      hosting_server: req.body.hosting_server || null,
     });
 
     backstop.initClient(client).catch(err => console.warn(`[backstop] initClient: ${err.message}`));
@@ -115,6 +117,12 @@ router.put('/:id', async (req, res) => {
         ? (req.body.form_breakpoint_days !== '' && req.body.form_breakpoint_days !== null
             ? parseInt(req.body.form_breakpoint_days, 10) : null)
         : client.form_breakpoint_days,
+      tags: req.body.tags !== undefined
+        ? (req.body.tags ? JSON.stringify(req.body.tags) : null)
+        : client.tags,
+      hosting_server: req.body.hosting_server !== undefined
+        ? (req.body.hosting_server || null)
+        : client.hosting_server,
     });
 
     scheduler.rescheduleClient(client.id).catch(() => {});

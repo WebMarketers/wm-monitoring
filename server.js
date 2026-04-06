@@ -10,6 +10,7 @@ const clientsRouter      = require('./routes/clients');
 const testsRouter        = require('./routes/tests');
 const settingsRouter     = require('./routes/settings');
 const formWebhookRouter  = require('./routes/formWebhook');
+const maintenanceRouter  = require('./routes/maintenance');
 const db                 = require('./db');
 const scheduler          = require('./services/scheduler');
 
@@ -35,6 +36,7 @@ app.use('/plugin', express.static(path.join(__dirname, 'wp-plugin')));
 
 // ── API Routes ─────────────────────────────────────────────────────────────────
 app.use('/api/clients',       clientsRouter);
+app.use('/api/clients',       maintenanceRouter);
 app.use('/api/settings',      settingsRouter);
 app.use('/api/form-webhook',  formWebhookRouter);
 app.use('/api',               testsRouter);
