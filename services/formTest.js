@@ -84,7 +84,7 @@ async function runFormTest(runId, client) {
     // Some WP plugins inject HTML/JS into REST API responses, causing Axios to return a string.
     if (typeof result === 'string') {
       try {
-        const jsonStart = result.indexOf('{');
+        const jsonStart = result.indexOf('{"form_type"');
         const jsonEnd = result.lastIndexOf('}') + 1;
         if (jsonStart !== -1 && jsonEnd > jsonStart) {
           result = JSON.parse(result.substring(jsonStart, jsonEnd));
