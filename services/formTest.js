@@ -79,10 +79,22 @@ async function runFormTest(runId, client) {
       { headers, timeout: 30000 }
     );
 
-    const result = formRes.data;
+    let result = formRes.data;
+    
+    // Some WP plugins inject HTML/JS into REST API responses, causing Axios to return a string.
+    if (typeof result === 'string') {
+      try {
+        const jsonStart = result.indexOf('{');
+        const jsonEnd = result.lastIndexOf('}') + 1;
+        if (jsonStart !== -1 && jsonEnd > jsonStart) {
+          result = JSON.parse(result.substring(jsonStart, jsonEnd));
+        }
+      } catch (e) {
+        log += `[${new Date().toISOString()}] ⚠️ Server returned malformed JSON: ${e.message}\n`;
+      }
+    }
 
     log += `[${new Date().toISOString()}] Form submitted: ${result.form_submitted ? '✅ Yes' : '❌ No'}\n`;
-    log += `[${new Date().toISOString()}]    RAW RESULT DATA: ${JSON.stringify(result)}\n`;
     if (result.entry_id) log += `[${new Date().toISOString()}]    Entry ID: ${result.entry_id}\n`;
     if (result.errors) log += `[${new Date().toISOString()}]    Errors: ${typeof result.errors === 'string' ? result.errors : JSON.stringify(result.errors)}\n`;
     log += `\n`;

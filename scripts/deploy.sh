@@ -33,9 +33,9 @@ rsync -az --checksum \
 ssh "$REMOTE" "
   cd $REMOTE_DIR
   npm install --production --silent 2>/dev/null
-  pm2 restart webmarketers-monitoring --silent
+  pm2 restart wm-monitoring --silent
   sleep 1
-  STATUS=\$(pm2 jlist | python3 -c \"import sys,json; procs=json.load(sys.stdin); p=[x for x in procs if x['name']=='webmarketers-monitoring'][0]; print(p['pm2_env']['status'])\" 2>/dev/null || echo 'unknown')
+  STATUS=\$(pm2 jlist | python3 -c \"import sys,json; procs=json.load(sys.stdin); p=[x for x in procs if x['name']=='wm-monitoring'][0]; print(p['pm2_env']['status'])\" 2>/dev/null || echo 'unknown')
   echo \"  PM2 status: \$STATUS\"
 "
 
