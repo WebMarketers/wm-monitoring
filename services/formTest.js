@@ -71,7 +71,11 @@ async function runFormTest(runId, client) {
 
     const formRes = await axios.post(
       endpoint,
-      { form_id: client.form_id, test_email: client.test_email },
+      {
+        form_id:     client.form_id,
+        test_email:  client.test_email,
+        silent_mode: true,   // ← suppress client notification emails
+      },
       { headers, timeout: 30000 }
     );
 

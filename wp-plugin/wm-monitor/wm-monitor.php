@@ -109,8 +109,11 @@ function wm_monitor_test_form( WP_REST_Request $request ) {
     $test_email  = sanitize_email( $request->get_param( 'test_email' ) );
 
     if ( $silent_mode ) {
-        add_filter( 'wp_mail', 'wm_monitor_suppress_test_email', 1 );
-        add_filter( 'gform_disable_notification', '__return_true' );
+        // Redirect all outgoing mail to a safe address — client never receives it,
+        // but Post SMTP still logs the send so our email-delivery check passes.
+        add_filter( 'wp_mail', 'wm_monitor_redirect_test_email', 1 );
+        // NOTE: do NOT add gform_disable_notification here — that prevents wp_mail
+        // from firing at all, which means Post SMTP never logs and the test fails.
     }
 
     // Force GF to send notifications synchronously during tests so we can check Post SMTP right after
@@ -125,12 +128,11 @@ function wm_monitor_test_form( WP_REST_Request $request ) {
             $response = wm_monitor_submit_cf7( $form_id );
         }
     } finally {
-        // Always clean up silent mode
+        // Always clean up
         if ( $silent_mode ) {
-            delete_option( 'wm_monitor_silent_mode_active' );
-            remove_filter( 'wp_mail', 'wm_monitor_suppress_test_email', 1 );
-            remove_filter( 'gform_disable_notification', '__return_true', 99 );
+            remove_filter( 'wp_mail', 'wm_monitor_redirect_test_email', 1 );
         }
+        remove_filter( 'gform_use_post_background_tasks', '__return_false', 99 );
     }
 
     $response['silent_mode']  = $silent_mode;
@@ -140,10 +142,12 @@ function wm_monitor_test_form( WP_REST_Request $request ) {
     return rest_ensure_response( $response );
 }
 
-// ── Suppress email during silent/test mode ────────────────────────────────────
-function wm_monitor_suppress_test_email( $args ) {
-    // Block all outgoing mail when in silent mode
-    $args['to'] = 'devnull@wm-monitor.internal'; // route to a dead address
+// ── Redirect email during silent/test mode (client never receives it) ─────────
+function wm_monitor_redirect_test_email( $args ) {
+    // Reroute to a safe internal address — Post SMTP still logs the send,
+    // but the site owner / client never receives the test notification.
+    $args['to']      = 'wm-monitor-test@devnull.teamwebmarketers.ca';
+    $args['subject'] = '[WM MONITOR TEST] ' . ( $args['subject'] ?? '' );
     return $args;
 }
 
