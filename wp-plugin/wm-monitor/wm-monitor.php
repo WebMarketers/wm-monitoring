@@ -229,15 +229,20 @@ function wm_monitor_test_form( WP_REST_Request $request ) {
         remove_filter( 'gform_use_post_background_tasks', '__return_false', 99 );
     }
 
+    global $wm_monitor_wp_mail_fired;
     $response['silent_mode']  = $silent_mode;
     $response['test_data']    = wm_monitor_get_test_data();
     $response['post_smtp']    = wm_monitor_has_post_smtp();
+    $response['wp_mail_fired'] = (bool) $wm_monitor_wp_mail_fired;
 
     return rest_ensure_response( $response );
 }
 
 // ── Redirect email during silent/test mode (client never receives it) ─────────
 function wm_monitor_redirect_test_email( $args ) {
+    global $wm_monitor_wp_mail_fired;
+    $wm_monitor_wp_mail_fired = true;
+    
     // Reroute to a safe internal address — Post SMTP still logs the send,
     // but the site owner / client never receives the test notification.
     $args['to']      = 'wm-monitor-test@devnull.teamwebmarketers.ca';

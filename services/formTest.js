@@ -95,8 +95,12 @@ async function runFormTest(runId, client) {
       log += `[${new Date().toISOString()}]    Status: ${result.email_log.status || 'sent'}\n`;
     } else if (!pingResult.post_smtp) {
       log += `[${new Date().toISOString()}]    ⚠️ Post SMTP not installed — cannot verify email delivery\n`;
+    } else if (result.wp_mail_fired === false) {
+      log += `[${new Date().toISOString()}]    ❌ wp_mail() was NEVER called by the form plugin.\n`;
+      log += `[${new Date().toISOString()}]    ⚠️ Make sure the form has an active notification configured!\n`;
     } else {
       log += `[${new Date().toISOString()}]    ❌ No recent email log entry found since form submission\n`;
+      log += `[${new Date().toISOString()}]    ⚠️ wp_mail() WAS called, but Post SMTP did not record it in time.\n`;
     }
 
     // Determine overall status
