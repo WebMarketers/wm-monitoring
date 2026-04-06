@@ -309,7 +309,8 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
         if ( ! is_wp_error( $entry ) ) {
             // Force the core GF sending method for ALL notifications, ignoring the 'event' setting
             add_filter( 'gform_notification', 'wm_monitor_test_gf_force_notification', 999, 3 );
-            GFCommon::send_notifications( $form['notifications'], $form, $entry, true, 'form_submission' );
+            $notification_ids = array_keys( $form['notifications'] );
+            GFCommon::send_notifications( $notification_ids, $form, $entry, true, 'form_submission' );
             remove_filter( 'gform_notification', 'wm_monitor_test_gf_force_notification', 999 );
         }
     }
