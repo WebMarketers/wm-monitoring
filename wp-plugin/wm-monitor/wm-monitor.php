@@ -278,6 +278,15 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
         $latest_before = wm_monitor_get_latest_email();
     }
 
+    $active_notifs = 0;
+    if ( ! empty( $form['notifications'] ) ) {
+        foreach ( $form['notifications'] as $n ) {
+            if ( ! empty( $n['isActive'] ) ) {
+                $active_notifs++;
+            }
+        }
+    }
+
     add_filter( 'gform_validation', 'wm_monitor_test_gf_validation', 999 );
     $result = GFAPI::submit_form( $form_id, $submission );
     remove_filter( 'gform_validation', 'wm_monitor_test_gf_validation', 999 );
