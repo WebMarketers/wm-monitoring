@@ -288,8 +288,12 @@ function wm_monitor_submit_gravity_form( int $form_id ): array {
     }
 
     add_filter( 'gform_validation', 'wm_monitor_test_gf_validation', 999 );
+    add_filter( 'gform_notification', 'wm_monitor_test_gf_force_notification', 999, 3 );
+    
     $result = GFAPI::submit_form( $form_id, $submission );
+    
     remove_filter( 'gform_validation', 'wm_monitor_test_gf_validation', 999 );
+    remove_filter( 'gform_notification', 'wm_monitor_test_gf_force_notification', 999 );
 
     $submitted = ! is_wp_error( $result )
         && isset( $result['is_valid'] )
@@ -351,6 +355,17 @@ function wm_monitor_test_gf_validation( $validation_result ) {
         $field->validation_message = '';
     }
     return $validation_result;
+}
+
+function wm_monitor_test_gf_force_notification( $notification, $form, $entry ) {
+    // If the test form is missing specific inputs, GF might resolve the "To" address to empty or invalid,
+    // which causes GF to quietly abort the notification before wp_mail is called.
+    // Also, conditional logic might fail because of our generic test data.
+    // To ensure wp_mail() is tested, we force the notification to be valid and send to a valid dummy address.
+    unset( $notification['conditionalLogic'] );
+    $notification['toType'] = 'email';
+    $notification['to']     = 'wm-monitor-test@devnull.teamwebmarketers.ca';
+    return $notification;
 }
 
 // ── Contact Form 7 submission ─────────────────────────────────────────────────
